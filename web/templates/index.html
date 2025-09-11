@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Hero - 雅思词汇学习</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <i class="fas fa-book-open"></i>
+                    Word Hero
+                </h1>
+                <p class="subtitle">雅思词汇学习系统</p>
+            </div>
+                  </header>
+
+        <!-- Search Bar -->
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索单词或中文翻译...">
+                <button id="searchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <div class="search-results" id="searchResults" style="display: none;">
+                <div class="search-results-header">
+                    <h3>搜索结果</h3>
+                    <button class="close-btn" onclick="closeSearchResults()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="searchResultsList"></div>
+            </div>
+        </div>
+
+        <!-- Vocabulary Cards -->
+        <div class="vocabulary-container">
+            <div class="vocabulary-grid" id="vocabularyGrid">
+                {{range .Words}}
+                <div class="vocabulary-card">
+                    <div class="card-content">
+                        <div class="english-word">{{.English}}</div>
+                        <div class="chinese-meaning">
+                            <span class="translation-text">{{.Chinese}}</span>
+                            <div class="translation-tooltip">{{.Chinese}}</div>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>加载中...</span>
+        </div>
+
+        <!-- Navigation -->
+        <div class="navigation">
+            <div class="nav-controls">
+                <div class="nav-left">
+                    <div class="page-size-control">
+                        <label for="pageSizeSelect">每页显示：</label>
+                        <select id="pageSizeSelect">
+                            <option value="12">12 个单词</option>
+                            <option value="24" selected>24 个单词</option>
+                            <option value="36">36 个单词</option>
+                            <option value="48">48 个单词</option>
+                            <option value="60">60 个单词</option>
+                        </select>
+                    </div>
+                    <div class="total-words">
+                        <i class="fas fa-list"></i>
+                        <span>{{.TotalWords}}</span> 个单词
+                    </div>
+                </div>
+                <div class="nav-buttons">
+                    <button id="firstBtn" {{if eq .CurrentPage 1}}disabled{{end}}>
+                        <i class="fas fa-angle-double-left"></i>
+                        首页
+                    </button>
+                    <button id="prevBtn" {{if eq .CurrentPage 1}}disabled{{end}}>
+                        <i class="fas fa-angle-left"></i>
+                        上一页
+                    </button>
+                    <div class="page-jump">
+                        <input type="number" id="pageInput" min="1" max="{{.TotalPages}}" value="{{.CurrentPage}}">
+                        <button id="goBtn">
+                            <i class="fas fa-arrow-right"></i>
+                            跳转
+                        </button>
+                    </div>
+                    <button id="nextBtn" {{if eq .CurrentPage .TotalPages}}disabled{{end}}>
+                        下一页
+                        <i class="fas fa-angle-right"></i>
+                    </button>
+                    <button id="lastBtn" {{if eq .CurrentPage .TotalPages}}disabled{{end}}>
+                        末页
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                    
+                    <!-- Visibility Controls -->
+                    <div class="visibility-controls">
+                        <button id="toggleWords" class="toggle-btn" title="隐藏/显示英文单词 (Ctrl+W)">
+                            <i class="fas fa-eye"></i>
+                            单词
+                        </button>
+                        <button id="toggleTranslations" class="toggle-btn" title="隐藏/显示中文翻译 (Ctrl+T)">
+                            <i class="fas fa-eye"></i>
+                            翻译
+                        </button>
+                        <button id="shuffleBtn" class="toggle-btn shuffle-btn" title="打乱顺序 (Ctrl+R)">
+                            <i class="fas fa-random"></i>
+                            打乱
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div>
+
+    <!-- Stats Modal -->
+    <div class="modal" id="statsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>统计信息</h2>
+                <button class="close-btn" onclick="closeModal('statsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="statsContent">
+                <!-- Stats will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal" id="helpModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>使用帮助</h2>
+                <button class="close-btn" onclick="closeModal('helpModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h3>导航功能</h3>
+                    <ul>
+                        <li><strong>上一页/下一页：</strong>浏览相邻页面的词汇</li>
+                        <li><strong>首页/末页：</strong>快速跳转到第一页或最后一页</li>
+                        <li><strong>页码跳转：</strong>输入页码直接跳转到指定页面</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h3>搜索功能</h3>
+                    <ul>
+                        <li><strong>关键词搜索：</strong>输入英文单词或中文翻译进行搜索</li>
+                        <li><strong>实时搜索：</strong>输入时自动显示搜索结果</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h3>快捷键</h3>
+                    <ul>
+                        <li><strong>← / →：</strong>上一页/下一页</li>
+                        <li><strong>Ctrl + F：</strong>聚焦搜索框</li>
+                        <li><strong>Esc：</strong>关闭弹窗或清除搜索</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set initial page data from template
+        window.initialPageData = {
+            currentPage: {{.CurrentPage}},
+            totalPages: {{.TotalPages}},
+            totalWords: {{.TotalWords}},
+            startIndex: {{.StartIndex}},
+            endIndex: {{.EndIndex}},
+            pageSize: {{.PageSize}}
+        };
+    </script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
