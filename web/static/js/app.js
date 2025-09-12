@@ -86,10 +86,12 @@ function setupEventListeners() {
     const toggleWordsBtn = document.getElementById('toggleWords');
     const toggleTranslationsBtn = document.getElementById('toggleTranslations');
     const shuffleBtn = document.getElementById('shuffleBtn');
+    const resetKnownWordsBtn = document.getElementById('resetKnownWords');
     
     toggleWordsBtn.addEventListener('click', toggleWordsVisibility);
     toggleTranslationsBtn.addEventListener('click', toggleTranslationsVisibility);
     shuffleBtn.addEventListener('click', shuffleCards);
+    resetKnownWordsBtn.addEventListener('click', resetKnownWords);
     
     // Accent selection
     const accentUS = document.getElementById('accentUS');
@@ -454,8 +456,13 @@ function handleKeyboardShortcuts(e) {
             break;
         case 'r':
             if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                shuffleCards();
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    resetKnownWords();
+                } else {
+                    e.preventDefault();
+                    shuffleCards();
+                }
             }
             break;
     }
@@ -1119,6 +1126,24 @@ function updateWordCardAppearance(word, isKnown) {
         } else {
             card.classList.remove('known-word');
         }
+    }
+}
+
+function resetKnownWords() {
+    if (confirm('确定要重置所有单词的标记状态和顺序吗？这将清除所有已认识单词的记录并恢复原始顺序。')) {
+        // Clear the known words set
+        knownWords.clear();
+        
+        // Save to localStorage
+        saveKnownWords();
+        
+        // Reload current page to restore original order
+        const pageSizeSelect = document.getElementById('pageSizeSelect');
+        const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+        loadPage(currentPage, pageSize);
+        
+        // Show success message
+        showToast('已重置所有单词标记和顺序', 'success');
     }
 }
 

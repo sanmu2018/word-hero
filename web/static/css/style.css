@@ -465,6 +465,21 @@ body {
     transform: translateY(0);
 }
 
+.toggle-btn.reset-btn {
+    background: #dc3545;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+}
+
+.toggle-btn.reset-btn:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.toggle-btn.reset-btn:active {
+    transform: translateY(0);
+}
+
 /* Accent Selection Controls */
 .accent-controls {
     display: flex;
