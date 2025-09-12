@@ -625,23 +625,7 @@ body {
     visibility: visible;
 }
 
-/* Loading Indicator */
-.loading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 40px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    margin-bottom: 20px;
-}
-
-.loading i {
-    font-size: 2rem;
-    color: #667eea;
-    margin-right: 10px;
-}
+/* Loading Indicator removed for smoother pagination experience */
 
 /* Footer */
 .footer {

@@ -156,8 +156,6 @@ function navigateToPage(pageNumber) {
 function loadPage(pageNumber, pageSize) {
     if (isLoading) return;
     
-    showLoading();
-    
     // Get page size from selector or use default
     if (!pageSize) {
         const pageSizeSelect = document.getElementById('pageSizeSelect');
@@ -167,8 +165,6 @@ function loadPage(pageNumber, pageSize) {
     fetch(`/api/words?page=${pageNumber}&pageSize=${pageSize}`)
         .then(response => response.json())
         .then(data => {
-            hideLoading();
-            
             if (data.success) {
                 updatePageContent(data.data);
                 updatePageInfo();
@@ -178,7 +174,6 @@ function loadPage(pageNumber, pageSize) {
             }
         })
         .catch(error => {
-            hideLoading();
             showError('Network error: ' + error.message);
         });
 }
@@ -303,15 +298,7 @@ function closeModal(modalId) {
 }
 
 // Utility functions
-function showLoading() {
-    isLoading = true;
-    document.getElementById('loading').style.display = 'flex';
-}
-
-function hideLoading() {
-    isLoading = false;
-    document.getElementById('loading').style.display = 'none';
-}
+// Loading functions removed for smoother pagination experience
 
 function showError(message) {
     // Create a toast notification
