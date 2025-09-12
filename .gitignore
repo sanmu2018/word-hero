@@ -32,3 +32,6 @@ go.work.sum
 # .vscode/
 
 .idea
+
+# Windows system files
+nul
