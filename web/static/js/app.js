@@ -7,6 +7,7 @@ let translationsVisible = true;
 let currentSpeech = null;
 let selectedCard = null;
 let selectedAccent = 'uk'; // Default to UK accent
+let knownWords = new Set(); // Track known words
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -45,6 +46,12 @@ function initializeApp() {
     
     // Add click events to initial template cards
     setupTemplateCardEvents();
+    
+    // Load known words from localStorage
+    loadKnownWords();
+    
+    // Apply known word states to template cards
+    applyKnownWordStates();
     
     // Update page info display
     updatePageInfo();
@@ -225,11 +232,17 @@ function updatePageContent(data) {
 function createVocabularyCard(word, displayNumber) {
     const card = document.createElement('div');
     card.className = 'vocabulary-card';
+    card.setAttribute('data-word', word.English);
     
     // Process Chinese translation
     const chineseTranslation = processTranslation(word.Chinese);
     
+    const isKnown = knownWords.has(word.English);
+    
     card.innerHTML = `
+        <button class="action-btn" onclick="toggleWordMenu(event, '${escapeHtml(word.English)}')" title="更多操作">
+            <i class="fas fa-ellipsis-v"></i>
+        </button>
         <div class="card-content">
             <div class="english-word">
                 ${escapeHtml(word.English)}
@@ -242,15 +255,34 @@ function createVocabularyCard(word, displayNumber) {
                 ${chineseTranslation.hasTooltip ? `<div class="translation-tooltip">${escapeHtml(word.Chinese)}</div>` : ''}
             </div>
         </div>
+        <div class="word-menu" id="menu-${escapeHtml(word.English)}" style="display: none;">
+            <div class="menu-item known-action" data-word="${escapeHtml(word.English)}" data-action="known">
+                <i class="fas fa-check"></i>
+                标为认识
+            </div>
+            <div class="menu-item unknown-action" data-word="${escapeHtml(word.English)}" data-action="unknown" style="display: none;">
+                <i class="fas fa-times"></i>
+                标为不认识
+            </div>
+            <div class="menu-item detail-action" data-word="${escapeHtml(word.English)}" data-action="detail">
+                <i class="fas fa-search-plus"></i>
+                细品
+            </div>
+        </div>
     `;
     
     // Add click event for card selection
     card.addEventListener('click', function(e) {
-        // Don't select if clicking on speaker button
-        if (!e.target.closest('.speaker-btn')) {
+        // Don't select if clicking on speaker button or action button
+        if (!e.target.closest('.speaker-btn') && !e.target.closest('.action-btn') && !e.target.closest('.word-menu')) {
             selectCard(this);
         }
     });
+    
+    // Apply known word state if needed
+    if (isKnown) {
+        card.classList.add('known-word');
+    }
     
     return card;
 }
@@ -966,8 +998,8 @@ function setupTemplateCardEvents() {
     templateCards.forEach(card => {
         if (!card.hasAttribute('data-event-setup')) {
             card.addEventListener('click', function(e) {
-                // Don't select if clicking on speaker button
-                if (!e.target.closest('.speaker-btn')) {
+                // Don't select if clicking on speaker button or action button
+                if (!e.target.closest('.speaker-btn') && !e.target.closest('.action-btn')) {
                     selectCard(this);
                 }
             });
@@ -995,6 +1027,269 @@ function showToast(message, type = 'info') {
         setTimeout(() => document.body.removeChild(toast), 300);
     }, 2000);
 }
+
+// Word action functions
+let currentActionWord = null; // Track current word for action modal
+
+function toggleWordMenu(event, word) {
+    event.stopPropagation();
+    
+    currentActionWord = word;
+    
+    // Update modal title
+    const title = document.getElementById('wordActionTitle');
+    if (title) {
+        title.textContent = `单词 - ${word}`;
+    }
+    
+    // Show modal
+    const modal = document.getElementById('wordActionModal');
+    if (modal) {
+        modal.style.display = 'block';
+        
+        // Update button states based on current word status
+        updateActionModalButtons(word);
+    } else {
+        console.error('Word action modal not found');
+    }
+}
+
+function updateActionModalButtons(word) {
+    const knownBtn = document.querySelector('.known-btn');
+    const unknownBtn = document.querySelector('.unknown-btn');
+    
+    if (knownWords.has(word)) {
+        knownBtn.style.display = 'none';
+        unknownBtn.style.display = 'flex';
+    } else {
+        knownBtn.style.display = 'flex';
+        unknownBtn.style.display = 'none';
+    }
+}
+
+function markCurrentWordAsKnown() {
+    if (currentActionWord) {
+        markWordAsKnown(currentActionWord);
+        closeWordActionModal();
+    }
+}
+
+function markCurrentWordAsUnknown() {
+    if (currentActionWord) {
+        markWordAsUnknown(currentActionWord);
+        closeWordActionModal();
+    }
+}
+
+function showCurrentWordDetail() {
+    if (currentActionWord) {
+        closeWordActionModal();
+        showWordDetail(currentActionWord);
+    }
+}
+
+function closeWordActionModal() {
+    const modal = document.getElementById('wordActionModal');
+    modal.style.display = 'none';
+    currentActionWord = null;
+}
+
+
+function markWordAsKnown(word) {
+    knownWords.add(word);
+    saveKnownWords();
+    updateWordCardAppearance(word, true);
+    showToast(`"${word}" 已标记为认识`, 'success');
+    closeWordActionModal();
+}
+
+function markWordAsUnknown(word) {
+    knownWords.delete(word);
+    saveKnownWords();
+    updateWordCardAppearance(word, false);
+    showToast(`"${word}" 已标记为不认识`, 'info');
+    closeWordActionModal();
+}
+
+function updateWordCardAppearance(word, isKnown) {
+    const card = document.querySelector(`.vocabulary-card[data-word="${word}"]`);
+    if (card) {
+        if (isKnown) {
+            card.classList.add('known-word');
+        } else {
+            card.classList.remove('known-word');
+        }
+    }
+}
+
+function showWordDetail(word) {
+    const modal = document.getElementById('wordDetailModal');
+    const title = document.getElementById('wordDetailTitle');
+    const content = document.getElementById('wordDetailContent');
+    
+    // Find the word data
+    const card = document.querySelector(`.vocabulary-card[data-word="${word}"]`);
+    const chineseText = card ? card.querySelector('.translation-text').textContent : '';
+    const isKnown = knownWords.has(word);
+    
+    title.textContent = '单词详情';
+    content.innerHTML = `
+        <div class="word-detail-header">
+            <div class="word-detail-word">${escapeHtml(word)}</div>
+            <div class="word-detail-pronunciation">
+                <button class="speaker-btn" onclick="speakWord('${escapeHtml(word)}', this)" title="播放发音" style="position: relative; top: auto; right: auto; opacity: 1; transform: scale(1); margin-left: 10px;">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                /${getPhonetic(word)}/
+            </div>
+            <div class="word-detail-meaning">${escapeHtml(chineseText)}</div>
+            <div class="word-detail-actions">
+                ${isKnown ? 
+                    `<button class="word-detail-btn danger" onclick="markWordAsUnknown('${escapeHtml(word)}'); updateWordDetailModal('${escapeHtml(word)}')">标为不认识</button>` :
+                    `<button class="word-detail-btn success" onclick="markWordAsKnown('${escapeHtml(word)}'); updateWordDetailModal('${escapeHtml(word)}')">标为认识</button>`
+                }
+                <button class="word-detail-btn primary" onclick="speakWord('${escapeHtml(word)}', this)">朗读单词</button>
+            </div>
+        </div>
+        <div class="word-detail-section">
+            <h3>学习进度</h3>
+            <div class="progress-info">
+                <div class="progress-item">
+                    <span>状态：</span>
+                    <span class="${isKnown ? 'status-known' : 'status-unknown'}">${isKnown ? '已认识' : '学习中'}</span>
+                </div>
+                <div class="progress-item">
+                    <span>标记时间：</span>
+                    <span>${isKnown ? new Date().toLocaleString('zh-CN') : '未标记'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'block';
+    closeAllMenus();
+}
+
+function updateWordDetailModal(word) {
+    showWordDetail(word);
+}
+
+function closeWordDetailModal() {
+    const modal = document.getElementById('wordDetailModal');
+    modal.style.display = 'none';
+}
+
+function getPhonetic(word) {
+    // Simple phonetic approximation - in real app this would come from dictionary API
+    const phonetics = {
+        'hello': 'həˈloʊ',
+        'world': 'wɜːrld',
+        'computer': 'kəmˈpjuːtər',
+        'language': 'ˈlæŋɡwɪdʒ',
+        'english': 'ˈɪŋɡlɪʃ',
+        'chinese': 'ˌtʃaɪˈniːz',
+        'student': 'ˈstuːdnt',
+        'teacher': 'ˈtiːtʃər',
+        'school': 'skuːl',
+        'university': 'ˌjuːnɪˈvɜːrsəti'
+    };
+    return phonetics[word.toLowerCase()] || 'pronunciation';
+}
+
+function loadKnownWords() {
+    const saved = localStorage.getItem('knownWords');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            knownWords = new Set(parsed);
+        } catch (e) {
+            console.error('Error loading known words:', e);
+            knownWords = new Set();
+        }
+    }
+}
+
+function saveKnownWords() {
+    try {
+        localStorage.setItem('knownWords', JSON.stringify(Array.from(knownWords)));
+    } catch (e) {
+        console.error('Error saving known words:', e);
+    }
+}
+
+function applyKnownWordStates() {
+    knownWords.forEach(word => {
+        updateWordCardAppearance(word, true);
+    });
+}
+
+// Setup click events for menu items
+document.addEventListener('click', function(e) {
+    // Close action modal when clicking outside
+    const actionModal = document.getElementById('wordActionModal');
+    if (actionModal && actionModal.style.display === 'block' && e.target === actionModal) {
+        closeWordActionModal();
+    }
+    
+    // Prevent card selection when clicking action button
+    if (e.target.closest('.action-btn')) {
+        e.stopPropagation();
+    }
+});
+
+// Add CSS for word detail modal
+const detailStyles = document.createElement('style');
+detailStyles.textContent = `
+    .word-detail-section {
+        margin-bottom: 25px;
+    }
+    
+    .word-detail-section h3 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 1.2rem;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 8px;
+    }
+    
+    .progress-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+    }
+    
+    .progress-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .progress-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .status-known {
+        color: #28a745;
+        font-weight: 600;
+    }
+    
+    .status-unknown {
+        color: #6c757d;
+        font-weight: 600;
+    }
+    
+    .speaker-btn {
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        opacity: 1 !important;
+        transform: scale(1) !important;
+        display: inline-flex !important;
+        margin-left: 10px;
+    }
+`;
+document.head.appendChild(detailStyles);
 
 // Update all speaker button states (fallback for backward compatibility)
 function updateSpeakerButtons(isSpeaking) {

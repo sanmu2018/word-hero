@@ -5,7 +5,11 @@
       "Bash(go mod init:*)",
       "Bash(go get:*)",
       "Bash(go build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(go run:*)",
+      "Bash(.word-hero.exe)",
+      "Bash(bashes)",
+      "Bash(/bashes)"
     ],
     "deny": [],
     "ask": []

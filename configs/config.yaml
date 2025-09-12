@@ -1,6 +1,6 @@
 # Word Hero Web Application Configuration
 server:
-  port: 8082
+  port: 8080
   host: "localhost"
 
 # Application settings

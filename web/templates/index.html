@@ -49,16 +49,13 @@
                 
                 <!-- Accent Selection -->
                 <div class="accent-controls">
-                    <div class="accent-selector">
-                        <label>发音偏好：</label>
-                        <div class="accent-options">
-                            <button id="accentUS" class="accent-btn" data-accent="us" title="美式英语">
-                                🇺🇸 US
-                            </button>
-                            <button id="accentUK" class="accent-btn active" data-accent="uk" title="英式英语">
-                                🇬🇧 UK
-                            </button>
-                        </div>
+                    <div class="accent-options">
+                        <button id="accentUS" class="accent-btn" data-accent="us" title="美式英语">
+                            🇺🇸
+                        </button>
+                        <button id="accentUK" class="accent-btn active" data-accent="uk" title="英式英语">
+                            🇬🇧
+                        </button>
                     </div>
                 </div>
             </div>
@@ -68,7 +65,10 @@
         <div class="vocabulary-container">
             <div class="vocabulary-grid" id="vocabularyGrid">
                 {{range .Words}}
-                <div class="vocabulary-card">
+                <div class="vocabulary-card" data-word="{{.English}}">
+                    <button class="action-btn" onclick="toggleWordMenu(event, '{{.English}}')" title="更多操作">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
                     <div class="card-content">
                         <div class="english-word">
                             {{.English}}
@@ -210,6 +210,49 @@
                 </div>
                 <div class="search-results-container" id="searchResultsContainer" style="display: none;">
                     <div class="search-results-list" id="searchModalResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Detail Modal -->
+    <div class="modal" id="wordDetailModal">
+        <div class="modal-content detail-modal-content">
+            <div class="modal-header">
+                <h2 id="wordDetailTitle">单词详情</h2>
+                <button class="close-btn" onclick="closeWordDetailModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="wordDetailContent">
+                <!-- Word details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Action Modal -->
+    <div class="modal" id="wordActionModal">
+        <div class="modal-content action-modal-content">
+            <div class="modal-header">
+                <h2 id="wordActionTitle">单词操作</h2>
+                <button class="close-btn" onclick="closeWordActionModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="action-buttons-grid">
+                    <button class="action-btn large known-btn" onclick="markCurrentWordAsKnown()">
+                        <i class="fas fa-check"></i>
+                        <span>认识</span>
+                    </button>
+                    <button class="action-btn large unknown-btn" onclick="markCurrentWordAsUnknown()">
+                        <i class="fas fa-times"></i>
+                        <span>不认识</span>
+                    </button>
+                    <button class="action-btn large detail-btn" onclick="showCurrentWordDetail()">
+                        <i class="fas fa-search-plus"></i>
+                        <span>细品</span>
+                    </button>
                 </div>
             </div>
         </div>

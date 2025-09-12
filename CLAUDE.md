@@ -111,5 +111,10 @@ Word Hero is a web-based Go application for learning IELTS vocabulary, offering 
 - The application reads Excel files directly using `github.com/tealeg/xlsx/v3`
 - Data is read from `words/IELTS.xlsx` worksheet "雅思真经词汇"
 - Column 3 contains English words, Column 8 contains Chinese translations
-- Web server runs on port 8082 by default
+- Web server runs on port 8082 by default (configurable via configs/config.yaml)
 - Total vocabulary: 3673 words across 147 pages
+
+## Development Guidelines
+- **After debugging/testing completion**: Always stop all running background services to free up ports
+- **Configuration**: Server settings are loaded from `configs/config.yaml` with environment variable fallbacks
+- **Background services**: Use KillBash tool to terminate any lingering background processes after development sessions

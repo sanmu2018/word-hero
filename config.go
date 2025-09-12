@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents the application configuration
@@ -23,8 +26,9 @@ type Config struct {
 	} `yaml:"logging"`
 }
 
-// LoadConfig loads configuration from environment variables with fallback to config file
+// LoadConfig loads configuration from YAML file with fallback to defaults
 func LoadConfig() (*Config, error) {
+	// Default configuration
 	config := &Config{
 		Server: struct {
 			Port int    `yaml:"port"`
@@ -51,7 +55,20 @@ func LoadConfig() (*Config, error) {
 		},
 	}
 
-	// Load from environment variables if they exist
+	// Try to load from YAML file
+	if data, err := ioutil.ReadFile("configs/config.yaml"); err == nil {
+		if err := yaml.Unmarshal(data, config); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %v", err)
+		}
+	}
+
+	// Override with environment variables if they exist
+	if port := os.Getenv("PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Server.Port = p
+		}
+	}
+
 	if port := os.Getenv("WORD_HERO_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
 			config.Server.Port = p
