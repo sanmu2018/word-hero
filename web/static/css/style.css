@@ -465,6 +465,67 @@ body {
     transform: translateY(0);
 }
 
+/* Accent Selection Controls */
+.accent-controls {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.accent-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.accent-selector label {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.9rem;
+}
+
+.accent-options {
+    display: flex;
+    gap: 5px;
+}
+
+.accent-btn {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    color: #6c757d;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.accent-btn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    color: #495057;
+}
+
+.accent-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+.accent-btn.active:hover {
+    background: #5a6fd8;
+    border-color: #5a6fd8;
+}
+
 /* Shuffle animation */
 .vocabulary-card.shuffling {
     animation: shufflePulse 0.5s ease-in-out;
@@ -525,11 +586,25 @@ body {
     border-left: 4px solid #667eea;
     overflow: hidden;
     height: 100%;
+    cursor: pointer;
 }
 
 .vocabulary-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border-left: 4px solid #5a6fd8;
+}
+
+.vocabulary-card.selected {
+    border-left: 4px solid #28a745;
+    box-shadow: 0 4px 20px rgba(40, 167, 69, 0.2);
+    transform: translateY(-2px);
+}
+
+.vocabulary-card.selected .speaker-btn,
+.vocabulary-card:hover .speaker-btn {
+    opacity: 1 !important;
+    transform: scale(1) !important;
 }
 
 .card-content {
@@ -552,6 +627,7 @@ body {
     background: #f8f9fa;
     word-break: break-word;
     overflow-wrap: break-word;
+    position: relative;
 }
 
 .chinese-meaning {
@@ -623,6 +699,59 @@ body {
 .chinese-meaning:hover .translation-tooltip {
     opacity: 1;
     visibility: visible;
+}
+
+/* Speaker Button Styles */
+.english-word .speaker-btn {
+    position: absolute !important;
+    bottom: 5px !important;
+    right: 5px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #667eea !important;
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.3s ease !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: scale(0.8);
+}
+
+.english-word .speaker-btn:hover {
+    color: #5a6fd8 !important;
+    opacity: 1 !important;
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+.english-word .speaker-btn:active {
+    transform: scale(0.9) !important;
+}
+
+.english-word .speaker-btn.speaking {
+    color: #dc3545 !important;
+    opacity: 1 !important;
+    animation: soundWave 1s ease-in-out infinite;
+    transform: scale(1) !important;
+}
+
+.english-word .speaker-btn.speaking:hover {
+    color: #c82333 !important;
+    background: rgba(220, 53, 69, 0.1) !important;
+}
+
+@keyframes soundWave {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.1); }
+    50% { transform: scale(1.2); }
+    75% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
 
 /* Loading Indicator removed for smoother pagination experience */
@@ -900,6 +1029,33 @@ body {
     
     .vocabulary-card {
         padding: 15px;
+    }
+    
+    /* Mobile speaker button adjustments */
+    .speaker-btn {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+        bottom: 4px;
+        right: 4px;
+    }
+    
+    /* Mobile accent selector adjustments */
+    .accent-controls {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .accent-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .accent-options {
+        width: 100%;
+        justify-content: center;
     }
 }
 

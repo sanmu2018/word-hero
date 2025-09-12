@@ -4,9 +4,22 @@ let totalPages = 1;
 let isLoading = false;
 let wordsVisible = true;
 let translationsVisible = true;
+let currentSpeech = null;
+let selectedCard = null;
+let selectedAccent = 'uk'; // Default to UK accent
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize speech synthesis voices
+    if ('speechSynthesis' in window) {
+        // Load voices (some browsers need this)
+        window.speechSynthesis.getVoices();
+        // Listen for voices changed event
+        window.speechSynthesis.onvoiceschanged = function() {
+            console.log('Speech synthesis voices loaded:', window.speechSynthesis.getVoices().length);
+        };
+    }
+    
     initializeApp();
 });
 
@@ -29,6 +42,9 @@ function initializeApp() {
     
     // Set up event listeners
     setupEventListeners();
+    
+    // Add click events to initial template cards
+    setupTemplateCardEvents();
     
     // Update page info display
     updatePageInfo();
@@ -67,6 +83,15 @@ function setupEventListeners() {
     toggleWordsBtn.addEventListener('click', toggleWordsVisibility);
     toggleTranslationsBtn.addEventListener('click', toggleTranslationsVisibility);
     shuffleBtn.addEventListener('click', shuffleCards);
+    
+    // Accent selection
+    const accentUS = document.getElementById('accentUS');
+    const accentUK = document.getElementById('accentUK');
+    accentUS.addEventListener('click', () => selectAccent('us'));
+    accentUK.addEventListener('click', () => selectAccent('uk'));
+    
+    // Initialize accent selection to UK (without notification)
+    selectAccent('uk', false);
     
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -206,13 +231,27 @@ function createVocabularyCard(word, displayNumber) {
     
     card.innerHTML = `
         <div class="card-content">
-            <div class="english-word">${escapeHtml(word.English)}</div>
+            <div class="english-word">
+                ${escapeHtml(word.English)}
+                <button class="speaker-btn" onclick="speakWord('${escapeHtml(word.English)}', this)" title="播放发音">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
             <div class="chinese-meaning">
                 <span class="translation-text">${escapeHtml(chineseTranslation.display)}</span>
                 ${chineseTranslation.hasTooltip ? `<div class="translation-tooltip">${escapeHtml(word.Chinese)}</div>` : ''}
             </div>
         </div>
     `;
+    
+    // Add click event for card selection
+    card.addEventListener('click', function(e) {
+        // Don't select if clicking on speaker button
+        if (!e.target.closest('.speaker-btn')) {
+            selectCard(this);
+        }
+    });
+    
     return card;
 }
 
@@ -771,4 +810,196 @@ function resetSearchResults() {
     resultsContainer.style.display = 'none';
     resultsList.innerHTML = '';
     searchInfo.textContent = '输入至少2个字符开始搜索';
+}
+
+// Accent selection function
+function selectAccent(accent, showNotification = true) {
+    selectedAccent = accent;
+    
+    // Update button states
+    const accentUS = document.getElementById('accentUS');
+    const accentUK = document.getElementById('accentUK');
+    
+    if (accent === 'us') {
+        accentUS.classList.add('active');
+        accentUK.classList.remove('active');
+    } else {
+        accentUS.classList.remove('active');
+        accentUK.classList.add('active');
+    }
+    
+    // Show feedback only if requested
+    if (showNotification) {
+        const accentName = accent === 'us' ? '美式英语' : '英式英语';
+        showToast(`已切换到${accentName}发音`, 'success');
+    }
+}
+
+// Card selection function
+function selectCard(card) {
+    // Remove selection from previous card
+    if (selectedCard) {
+        selectedCard.classList.remove('selected');
+    }
+    
+    // Select new card
+    card.classList.add('selected');
+    selectedCard = card;
+}
+
+// Text-to-speech function
+function speakWord(word, button) {
+    // Check if currently speaking this word
+    if (currentSpeech && !currentSpeech.ended) {
+        // Stop speaking
+        window.speechSynthesis.cancel();
+        currentSpeech = null;
+        updateSpeakerButton(button, false);
+        return;
+    }
+    
+    // Stop any other current speech
+    if (currentSpeech) {
+        window.speechSynthesis.cancel();
+        currentSpeech = null;
+    }
+    
+    // Check if browser supports speech synthesis
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        
+        // Get available voices and try to find accent-specific voice
+        const voices = window.speechSynthesis.getVoices();
+        let preferredVoice = null;
+        
+        // Define voice preferences based on selected accent
+        let voicePreferences;
+        if (selectedAccent === 'us') {
+            // US English preferences
+            voicePreferences = [
+                'Google US English',
+                'Microsoft David - English (United States)',
+                'Microsoft Zira - English (United States)',
+                'Samantha',
+                'Alex',
+                'en-US'
+            ];
+        } else {
+            // UK English preferences
+            voicePreferences = [
+                'Google UK English Female',
+                'Google UK English Male',
+                'Microsoft Hazel - English (United Kingdom)',
+                'Microsoft George - English (United Kingdom)',
+                'Daniel',
+                'Karen',
+                'Oliver',
+                'Serena',
+                'en-GB'
+            ];
+        }
+        
+        // Find the best available voice
+        for (const voiceName of voicePreferences) {
+            const voice = voices.find(v => v.name.includes(voiceName) || v.lang.includes(voiceName));
+            if (voice) {
+                preferredVoice = voice;
+                break;
+            }
+        }
+        
+        // Configure speech settings for better pronunciation
+        utterance.voice = preferredVoice;
+        utterance.lang = preferredVoice ? preferredVoice.lang : 'en-US';
+        utterance.rate = 0.7;         // Optimal speed for language learning
+        utterance.pitch = 1.0;        // Normal pitch
+        utterance.volume = 1.0;       // Full volume
+        
+        // Store current speech
+        currentSpeech = utterance;
+        
+        // Handle speech events
+        utterance.onstart = function() {
+            // Update button to show speaking state
+            updateSpeakerButton(button, true);
+        };
+        
+        utterance.onend = function() {
+            currentSpeech = null;
+            // Reset button states
+            updateSpeakerButton(button, false);
+        };
+        
+        utterance.onerror = function(event) {
+            // Don't log "interrupted" errors as they are normal when user stops playback
+            if (event.error !== 'interrupted') {
+                console.error('Speech synthesis error:', event.error);
+                showError('语音播放失败，请检查浏览器设置');
+            }
+            currentSpeech = null;
+            updateSpeakerButton(button, false);
+        };
+        
+        // Speak the word
+        window.speechSynthesis.speak(utterance);
+    } else {
+        showError('您的浏览器不支持语音合成功能');
+    }
+}
+
+// Update single speaker button state
+function updateSpeakerButton(button, isSpeaking) {
+    if (isSpeaking) {
+        button.classList.add('speaking');
+        button.innerHTML = '<i class="fas fa-stop"></i>';
+        button.title = '停止播放';
+    } else {
+        button.classList.remove('speaking');
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';
+        button.title = '播放发音';
+    }
+}
+
+// Setup click events for template-rendered cards
+function setupTemplateCardEvents() {
+    const templateCards = document.querySelectorAll('.vocabulary-card');
+    templateCards.forEach(card => {
+        if (!card.hasAttribute('data-event-setup')) {
+            card.addEventListener('click', function(e) {
+                // Don't select if clicking on speaker button
+                if (!e.target.closest('.speaker-btn')) {
+                    selectCard(this);
+                }
+            });
+            card.setAttribute('data-event-setup', 'true');
+        }
+    });
+}
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : 'info'}-circle"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    // Show toast
+    setTimeout(() => toast.classList.add('show'), 100);
+    
+    // Hide and remove toast
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => document.body.removeChild(toast), 300);
+    }, 2000);
+}
+
+// Update all speaker button states (fallback for backward compatibility)
+function updateSpeakerButtons(isSpeaking) {
+    const speakerButtons = document.querySelectorAll('.speaker-btn');
+    speakerButtons.forEach(button => {
+        updateSpeakerButton(button, isSpeaking);
+    });
 }

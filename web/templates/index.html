@@ -46,6 +46,21 @@
                         打乱
                     </button>
                 </div>
+                
+                <!-- Accent Selection -->
+                <div class="accent-controls">
+                    <div class="accent-selector">
+                        <label>发音偏好：</label>
+                        <div class="accent-options">
+                            <button id="accentUS" class="accent-btn" data-accent="us" title="美式英语">
+                                🇺🇸 US
+                            </button>
+                            <button id="accentUK" class="accent-btn active" data-accent="uk" title="英式英语">
+                                🇬🇧 UK
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -55,7 +70,12 @@
                 {{range .Words}}
                 <div class="vocabulary-card">
                     <div class="card-content">
-                        <div class="english-word">{{.English}}</div>
+                        <div class="english-word">
+                            {{.English}}
+                            <button class="speaker-btn" onclick="speakWord('{{.English}}', this)" title="播放发音">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                        </div>
                         <div class="chinese-meaning">
                             <span class="translation-text">{{.Chinese}}</span>
                             <div class="translation-tooltip">{{.Chinese}}</div>
