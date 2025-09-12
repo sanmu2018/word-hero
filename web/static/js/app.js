@@ -43,17 +43,9 @@ function setupEventListeners() {
     document.getElementById('goBtn').addEventListener('click', goToPage);
     
       
-    // Search functionality
-    const searchInput = document.getElementById('searchInput');
+    // Search functionality (modal-based)
     const searchBtn = document.getElementById('searchBtn');
-    
-    searchInput.addEventListener('input', debounce(handleSearch, 300));
-    searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            handleSearch();
-        }
-    });
-    searchBtn.addEventListener('click', handleSearch);
+    searchBtn.addEventListener('click', showSearchModal);
     
     // Page input
     const pageInput = document.getElementById('pageInput');
@@ -79,11 +71,11 @@ function setupEventListeners() {
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
     
-    // Close search results when clicking outside
+    // Close search modal when clicking outside
     document.addEventListener('click', function(e) {
-        const searchContainer = document.querySelector('.search-container');
-        if (!searchContainer.contains(e.target)) {
-            closeSearchResults();
+        const searchModal = document.getElementById('searchModal');
+        if (searchModal.style.display === 'block' && e.target === searchModal) {
+            closeSearchModal();
         }
     });
 }
@@ -256,71 +248,6 @@ function updatePageInfo() {
     }
 }
 
-// Search functionality
-function handleSearch() {
-    const query = document.getElementById('searchInput').value.trim();
-    
-    if (query.length === 0) {
-        closeSearchResults();
-        return;
-    }
-    
-    if (query.length < 2) {
-        return; // Don't search for very short queries
-    }
-    
-    performSearch(query);
-}
-
-function performSearch(query) {
-    fetch(`/api/search?q=${encodeURIComponent(query)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                displaySearchResults(data.data);
-            } else {
-                showError('Search failed: ' + data.error);
-            }
-        })
-        .catch(error => {
-            showError('Search error: ' + error.message);
-        });
-}
-
-function displaySearchResults(data) {
-    const searchResults = document.getElementById('searchResults');
-    const searchResultsList = document.getElementById('searchResultsList');
-    
-    // Clear previous results
-    searchResultsList.innerHTML = '';
-    
-    // Check if results exist and is an array
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-        searchResultsList.innerHTML = '<div class="search-result-item">没有找到相关词汇</div>';
-    } else {
-        data.results.forEach(word => {
-            const resultItem = document.createElement('div');
-            resultItem.className = 'search-result-item';
-            resultItem.innerHTML = `
-                <div class="search-result-word">${escapeHtml(word.English)}</div>
-                <div class="search-result-meaning">${escapeHtml(word.Chinese)}</div>
-            `;
-            resultItem.addEventListener('click', () => {
-                closeSearchResults();
-                document.getElementById('searchInput').value = '';
-            });
-            searchResultsList.appendChild(resultItem);
-        });
-    }
-    
-    // Show search results
-    searchResults.style.display = 'block';
-}
-
-function closeSearchResults() {
-    document.getElementById('searchResults').style.display = 'none';
-    document.getElementById('searchInput').value = '';
-}
 
 // Modal functions
 function showStats() {
@@ -447,13 +374,13 @@ function handleKeyboardShortcuts(e) {
         case 'f':
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
-                document.getElementById('searchInput').focus();
+                showSearchModal();
             }
             break;
         case 'Escape':
             closeModal('statsModal');
             closeModal('helpModal');
-            closeSearchResults();
+            closeSearchModal();
             break;
         case 'w':
             if (e.ctrlKey || e.metaKey) {
@@ -700,4 +627,161 @@ function showShuffleFeedback() {
         shuffleBtn.innerHTML = originalHTML;
         shuffleBtn.style.background = '';
     }, 1000);
+}
+
+// Search Modal Functions
+function showSearchModal() {
+    const modal = document.getElementById('searchModal');
+    const searchInput = document.getElementById('searchModalInput');
+    const searchBtn = document.getElementById('searchModalBtn');
+    
+    modal.style.display = 'block';
+    
+    // Focus on search input after a short delay
+    setTimeout(() => {
+        searchInput.focus();
+        searchInput.value = '';
+        resetSearchResults();
+    }, 100);
+    
+    // Set up modal event listeners
+    setupModalSearchListeners();
+}
+
+function closeSearchModal() {
+    const modal = document.getElementById('searchModal');
+    modal.style.display = 'none';
+    resetSearchResults();
+}
+
+function setupModalSearchListeners() {
+    const searchInput = document.getElementById('searchModalInput');
+    const searchBtn = document.getElementById('searchModalBtn');
+    
+    // Remove existing listeners to prevent duplicates
+    searchInput.removeEventListener('input', handleModalSearch);
+    searchInput.removeEventListener('keypress', handleModalSearchKeypress);
+    searchBtn.removeEventListener('click', handleModalSearchClick);
+    
+    // Add new listeners
+    searchInput.addEventListener('input', debounce(handleModalSearch, 300));
+    searchInput.addEventListener('keypress', handleModalSearchKeypress);
+    searchBtn.addEventListener('click', handleModalSearchClick);
+}
+
+function handleModalSearchKeypress(e) {
+    if (e.key === 'Enter') {
+        handleModalSearchClick();
+    }
+}
+
+function handleModalSearchClick() {
+    const query = document.getElementById('searchModalInput').value.trim();
+    if (query.length >= 2) {
+        performModalSearch(query);
+    }
+}
+
+function handleModalSearch() {
+    const query = document.getElementById('searchModalInput').value.trim();
+    
+    if (query.length === 0) {
+        resetSearchResults();
+        return;
+    }
+    
+    if (query.length < 2) {
+        updateSearchInfo('输入至少2个字符开始搜索');
+        return;
+    }
+    
+    performModalSearch(query);
+}
+
+function performModalSearch(query) {
+    const resultsContainer = document.getElementById('searchResultsContainer');
+    const resultsList = document.getElementById('searchModalResults');
+    const searchInfo = document.getElementById('searchResultCount');
+    
+    // Show loading state
+    resultsContainer.style.display = 'block';
+    resultsList.innerHTML = `
+        <div class="search-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>搜索中...</span>
+        </div>
+    `;
+    searchInfo.textContent = '正在搜索...';
+    
+    fetch(`/api/search?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayModalSearchResults(data.data, query);
+            } else {
+                showSearchError('搜索失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showSearchError('网络错误: ' + error.message);
+        });
+}
+
+function displayModalSearchResults(data, query) {
+    const resultsList = document.getElementById('searchModalResults');
+    const searchInfo = document.getElementById('searchResultCount');
+    
+    resultsList.innerHTML = '';
+    
+    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
+        resultsList.innerHTML = `
+            <div class="search-results-empty">
+                <i class="fas fa-search"></i>
+                <div>没有找到与 "<strong>${escapeHtml(query)}</strong>" 相关的词汇</div>
+            </div>
+        `;
+        searchInfo.textContent = '没有找到相关词汇';
+    } else {
+        data.results.forEach(word => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            resultItem.innerHTML = `
+                <div class="search-result-word">${escapeHtml(word.English)}</div>
+                <div class="search-result-meaning">${escapeHtml(word.Chinese)}</div>
+            `;
+            resultItem.addEventListener('click', () => {
+                closeSearchModal();
+            });
+            resultsList.appendChild(resultItem);
+        });
+        searchInfo.textContent = `找到 ${data.results.length} 个相关词汇`;
+    }
+}
+
+function showSearchError(message) {
+    const resultsList = document.getElementById('searchModalResults');
+    const searchInfo = document.getElementById('searchResultCount');
+    
+    resultsList.innerHTML = `
+        <div class="search-results-empty">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>${escapeHtml(message)}</div>
+        </div>
+    `;
+    searchInfo.textContent = '搜索出现错误';
+}
+
+function updateSearchInfo(message) {
+    const searchInfo = document.getElementById('searchResultCount');
+    searchInfo.textContent = message;
+}
+
+function resetSearchResults() {
+    const resultsContainer = document.getElementById('searchResultsContainer');
+    const resultsList = document.getElementById('searchModalResults');
+    const searchInfo = document.getElementById('searchResultCount');
+    
+    resultsContainer.style.display = 'none';
+    resultsList.innerHTML = '';
+    searchInfo.textContent = '输入至少2个字符开始搜索';
 }

@@ -20,22 +20,32 @@
             </div>
                   </header>
 
-        <!-- Search Bar -->
-        <div class="search-container">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="搜索单词或中文翻译...">
-                <button id="searchBtn">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-            <div class="search-results" id="searchResults" style="display: none;">
-                <div class="search-results-header">
-                    <h3>搜索结果</h3>
-                    <button class="close-btn" onclick="closeSearchResults()">
-                        <i class="fas fa-times"></i>
+        <!-- Action Controls -->
+        <div class="action-controls">
+            <div class="control-group">
+                <!-- Search Controls -->
+                <div class="search-controls">
+                    <button id="searchBtn" class="action-btn search-btn" onclick="showSearchModal()">
+                        <i class="fas fa-search"></i>
+                        搜索
                     </button>
                 </div>
-                <div id="searchResultsList"></div>
+                
+                <!-- Toggle Controls -->
+                <div class="toggle-controls">
+                    <button id="toggleWords" class="action-btn toggle-btn" title="隐藏/显示英文单词 (Ctrl+W)">
+                        <i class="fas fa-eye"></i>
+                        单词
+                    </button>
+                    <button id="toggleTranslations" class="action-btn toggle-btn" title="隐藏/显示中文翻译 (Ctrl+T)">
+                        <i class="fas fa-eye"></i>
+                        翻译
+                    </button>
+                    <button id="shuffleBtn" class="action-btn shuffle-btn" title="打乱顺序 (Ctrl+R)">
+                        <i class="fas fa-random"></i>
+                        打乱
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -105,23 +115,7 @@
                         末页
                         <i class="fas fa-angle-double-right"></i>
                     </button>
-                    
-                    <!-- Visibility Controls -->
-                    <div class="visibility-controls">
-                        <button id="toggleWords" class="toggle-btn" title="隐藏/显示英文单词 (Ctrl+W)">
-                            <i class="fas fa-eye"></i>
-                            单词
-                        </button>
-                        <button id="toggleTranslations" class="toggle-btn" title="隐藏/显示中文翻译 (Ctrl+T)">
-                            <i class="fas fa-eye"></i>
-                            翻译
-                        </button>
-                        <button id="shuffleBtn" class="toggle-btn shuffle-btn" title="打乱顺序 (Ctrl+R)">
-                            <i class="fas fa-random"></i>
-                            打乱
-                        </button>
-                    </div>
-                </div>
+                  </div>
             </div>
         </div>
 
@@ -174,6 +168,33 @@
                         <li><strong>Ctrl + F：</strong>聚焦搜索框</li>
                         <li><strong>Esc：</strong>关闭弹窗或清除搜索</li>
                     </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div class="modal" id="searchModal">
+        <div class="modal-content search-modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-search"></i> 搜索词汇</h2>
+                <button class="close-btn" onclick="closeSearchModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="search-input-container">
+                    <input type="text" id="searchModalInput" placeholder="输入英文单词或中文翻译..." autocomplete="off">
+                    <button id="searchModalBtn" class="search-btn">
+                        <i class="fas fa-search"></i>
+                        搜索
+                    </button>
+                </div>
+                <div class="search-info">
+                    <span id="searchResultCount">输入至少2个字符开始搜索</span>
+                </div>
+                <div class="search-results-container" id="searchResultsContainer" style="display: none;">
+                    <div class="search-results-list" id="searchModalResults"></div>
                 </div>
             </div>
         </div>

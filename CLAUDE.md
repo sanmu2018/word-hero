@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Word Hero is a dual-platform Go application for learning IELTS vocabulary, offering both command-line and web interfaces. It reads vocabulary data from `words/IELTS.xlsx` (3673 words) and displays it in a paginated format (25 words per page) with interactive navigation and search functionality.
+Word Hero is a web-based Go application for learning IELTS vocabulary, offering a modern web interface. It reads vocabulary data from `words/IELTS.xlsx` (3673 words) and displays it in a paginated format (25 words per page) with interactive navigation and search functionality.
 
 ## Project Architecture
 
@@ -12,9 +12,7 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 - **models.go**: Defines Word, WordList, and Page data structures
 - **excel_reader.go**: Handles reading vocabulary from Excel files using xlsx library
 - **pager.go**: Implements pagination logic with 25 words per page
-- **ui.go**: Provides interactive command-line interface and navigation
-- **main.go**: Command-line application entry point
-- **web_main.go**: Web application entry point
+- **main.go**: Web application entry point
 - **web_server.go**: Web server and API handlers
 - **web/templates/**: HTML templates for web interface
 - **web/static/**: CSS, JavaScript, and other static assets
@@ -24,8 +22,8 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 2. Data is parsed from Excel (column 3: English, column 8: Chinese)
 3. Data is stored in WordList structure
 4. Pager handles pagination (25 words per page)
-5. UI displays words and handles user navigation
-6. User can navigate through pages using keyboard commands or web interface
+5. Web server provides REST API endpoints
+6. Frontend displays words and handles user navigation
 
 ## Development Environment
 
@@ -36,15 +34,10 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 
 ### Build and Run Commands
 
-#### Command Line Version
-- `go build -o word-hero.exe main.go excel_reader.go models.go pager.go ui.go` - Build CLI app
-- `go run main.go excel_reader.go models.go pager.go ui.go` - Run CLI directly
-- `./word-hero.exe` - Run compiled CLI version
-
 #### Web Version
-- `go build -o word-hero-web.exe web_main.go web_server.go excel_reader.go models.go pager.go` - Build web app
-- `go run web_main.go web_server.go excel_reader.go models.go pager.go` - Run web directly
-- `./word-hero-web.exe` - Run web server on port 8080
+- `go build -o word-hero.exe main.go web_server.go excel_reader.go models.go pager.go` - Build web app
+- `go run main.go web_server.go excel_reader.go models.go pager.go` - Run web directly
+- `./word-hero.exe` - Run web server on port 8082
 
 ### Data Requirements
 - Vocabulary data: `words/IELTS.xlsx`
@@ -54,25 +47,9 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 - Total vocabulary: 3673 words
 
 ### Testing
-- Command line: `echo -e "n\nq" | ./word-hero.exe` for automated testing
-- Web server: Test at `http://localhost:8080` in browser
+- Web server: Test at `http://localhost:8082` in browser
 
 ## User Interface
-
-### Command Line Interface
-#### Navigation Commands
-- `n` - Next page
-- `p` - Previous page
-- `f` - First page
-- `l` - Last page
-- `g` - Go to specific page
-- `s` - Show statistics
-- `q` - Quit application
-
-#### Display Format
-- Shows current page number and total pages
-- Displays 25 words per page with English and Chinese translations
-- Clean, formatted output with clear navigation instructions
 
 ### Web Interface
 #### Features
@@ -94,11 +71,10 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 ## Current Implementation Status
 
 ### ✅ Completed Features
-- Dual-platform application (CLI + Web)
+- Web-based application
 - Direct Excel file reading (3673 vocabulary words)
 - Modular architecture with separate concerns
 - Pagination system (25 words per page, 147 total pages)
-- Interactive command-line interface
 - Modern web interface with search functionality
 - Complete API endpoints
 - Error handling and user feedback
@@ -135,7 +111,5 @@ Word Hero is a dual-platform Go application for learning IELTS vocabulary, offer
 - The application reads Excel files directly using `github.com/tealeg/xlsx/v3`
 - Data is read from `words/IELTS.xlsx` worksheet "雅思真经词汇"
 - Column 3 contains English words, Column 8 contains Chinese translations
-- Both CLI and Web versions are fully functional
-- Web server runs on port 8080 by default
+- Web server runs on port 8082 by default
 - Total vocabulary: 3673 words across 147 pages
-- Both versions support the same core vocabulary data

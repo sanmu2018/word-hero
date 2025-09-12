@@ -3,12 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // WebServer handles the web application
@@ -59,16 +60,36 @@ func (ws *WebServer) Start(port int) error {
 	fs := http.FileServer(http.Dir("web/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// Set up routes
-	http.HandleFunc("/", ws.homeHandler(templates))
-	http.HandleFunc("/api/words", ws.apiWordsHandler)
-	http.HandleFunc("/api/page/", ws.apiPageHandler)
-	http.HandleFunc("/api/search", ws.apiSearchHandler)
-	http.HandleFunc("/api/stats", ws.apiStatsHandler)
+	// Set up routes with logging middleware
+	http.HandleFunc("/", ws.loggingMiddleware(ws.homeHandler(templates)))
+	http.HandleFunc("/api/words", ws.loggingMiddleware(ws.apiWordsHandler))
+	http.HandleFunc("/api/page/", ws.loggingMiddleware(ws.apiPageHandler))
+	http.HandleFunc("/api/search", ws.loggingMiddleware(ws.apiSearchHandler))
+	http.HandleFunc("/api/stats", ws.loggingMiddleware(ws.apiStatsHandler))
 
-	log.Printf("Starting web server on port %d", port)
-	log.Printf("Open http://localhost:%d in your browser", port)
+	log.Info().Int("port", port).Msg("Starting web server")
+	log.Info().Str("url", fmt.Sprintf("http://localhost:%d", port)).Msg("Open in browser")
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+}
+
+// loggingMiddleware logs HTTP requests
+func (ws *WebServer) loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Call the next handler
+		next(w, r)
+
+		// Log the request
+		duration := time.Since(start)
+		log.Info().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("query", r.URL.RawQuery).
+			Str("ip", r.RemoteAddr).
+			Dur("duration", duration).
+			Msg("HTTP request")
+	}
 }
 
 // homeHandler handles the main page
@@ -92,7 +113,7 @@ func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc 
 
 		// Create temporary pager with requested page size
 		tempPager := NewPager(ws.wordList, pageSize)
-		
+
 		// Get page data
 		page, err := tempPager.GetPage(pageNum)
 		if err != nil {
@@ -129,27 +150,30 @@ func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc 
 // apiWordsHandler handles API requests for words
 func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Get pagination parameters
 	page := 1
 	pageSize := 24 // Default page size
-	
+
 	if p := r.URL.Query().Get("page"); p != "" {
 		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
 			page = parsed
 		}
 	}
-	
+
 	if ps := r.URL.Query().Get("pageSize"); ps != "" {
 		if parsed, err := strconv.Atoi(ps); err == nil && parsed > 0 && parsed <= 100 {
 			pageSize = parsed
 		}
 	}
 
+	log.Debug().Int("page", page).Int("pageSize", pageSize).Msg("API words request")
+
 	// Create temporary pager with requested page size
 	tempPager := NewPager(ws.wordList, pageSize)
 	pageData, err := tempPager.GetPage(page)
 	if err != nil {
+		log.Warn().Err(err).Int("page", page).Msg("Failed to get page data")
 		json.NewEncoder(w).Encode(APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -235,6 +259,7 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	if query == "" {
+		log.Warn().Msg("Search query is empty")
 		json.NewEncoder(w).Encode(APIResponse{
 			Success: false,
 			Error:   "Search query is required",
@@ -242,15 +267,19 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debug().Str("query", query).Msg("Search request")
+
 	var results []Word
 	ws.mu.RLock()
 	for _, word := range ws.wordList.Words {
-		if strings.Contains(strings.ToLower(word.English), query) || 
-		   strings.Contains(strings.ToLower(word.Chinese), query) {
+		if strings.Contains(strings.ToLower(word.English), query) ||
+			strings.Contains(strings.ToLower(word.Chinese), query) {
 			results = append(results, word)
 		}
 	}
 	ws.mu.RUnlock()
+
+	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
 
 	response := APIResponse{
 		Success: true,
@@ -271,10 +300,10 @@ func (ws *WebServer) apiStatsHandler(w http.ResponseWriter, r *http.Request) {
 	response := APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
-			"totalWords":  ws.pager.GetWordCount(),
-			"totalPages":  ws.pager.GetTotalPages(),
-			"pageSize":    ws.pager.pageSize,
-			"fileSource":  "words/IELTS.xlsx",
+			"totalWords": ws.pager.GetWordCount(),
+			"totalPages": ws.pager.GetTotalPages(),
+			"pageSize":   ws.pager.pageSize,
+			"fileSource": "words/IELTS.xlsx",
 		},
 	}
 

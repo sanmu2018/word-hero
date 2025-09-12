@@ -1,0 +1,15 @@
+# Word Hero Web Application Configuration
+server:
+  port: 8082
+  host: "localhost"
+
+# Application settings
+app:
+  name: "Word Hero"
+  page_size: 25
+  excel_file: "words/IELTS.xlsx"
+
+# Logging settings
+logging:
+  level: "info"
+  file: ""
