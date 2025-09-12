@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sanmu2018/word-hero/log"
 )
 
 // WebServer handles the web application
@@ -60,20 +61,20 @@ func (ws *WebServer) Start(port int) error {
 	fs := http.FileServer(http.Dir("web/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// Set up routes with logging middleware
-	http.HandleFunc("/", ws.loggingMiddleware(ws.homeHandler(templates)))
-	http.HandleFunc("/api/words", ws.loggingMiddleware(ws.apiWordsHandler))
-	http.HandleFunc("/api/page/", ws.loggingMiddleware(ws.apiPageHandler))
-	http.HandleFunc("/api/search", ws.loggingMiddleware(ws.apiSearchHandler))
-	http.HandleFunc("/api/stats", ws.loggingMiddleware(ws.apiStatsHandler))
+	// Set up routes with log middleware
+	http.HandleFunc("/", ws.logMiddleware(ws.homeHandler(templates)))
+	http.HandleFunc("/api/words", ws.logMiddleware(ws.apiWordsHandler))
+	http.HandleFunc("/api/page/", ws.logMiddleware(ws.apiPageHandler))
+	http.HandleFunc("/api/search", ws.logMiddleware(ws.apiSearchHandler))
+	http.HandleFunc("/api/stats", ws.logMiddleware(ws.apiStatsHandler))
 
 	log.Info().Int("port", port).Msg("Starting web server")
 	log.Info().Str("url", fmt.Sprintf("http://localhost:%d", port)).Msg("Open in browser")
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
 
-// loggingMiddleware logs HTTP requests
-func (ws *WebServer) loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// logMiddleware logs HTTP requests
+func (ws *WebServer) logMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -87,7 +88,7 @@ func (ws *WebServer) loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			Str("path", r.URL.Path).
 			Str("query", r.URL.RawQuery).
 			Str("ip", r.RemoteAddr).
-			Dur("duration", duration).
+			Dur("cost", duration).
 			Msg("HTTP request")
 	}
 }
@@ -173,7 +174,7 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	tempPager := NewPager(ws.wordList, pageSize)
 	pageData, err := tempPager.GetPage(page)
 	if err != nil {
-		log.Warn().Err(err).Int("page", page).Msg("Failed to get page data")
+		log.Error(err).Str("page", strconv.Itoa(page)).Msg("Failed to get page data")
 		json.NewEncoder(w).Encode(APIResponse{
 			Success: false,
 			Error:   err.Error(),

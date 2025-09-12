@@ -1,10 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
-	"github.com/rs/zerolog/log"
+	"github.com/sanmu2018/word-hero/log"
 )
 
 const (
@@ -15,15 +16,13 @@ const (
 
 func main() {
 	// Initialize logger
-	InitLogger()
-
 	log.Info().Msg("=== Word Hero Web Application ===")
 	log.Info().Msg("Initializing web server...")
 
 	// Check if Excel file exists
 	if _, err := os.Stat(ExcelFile); err != nil {
-		log.Error().Err(err).Str("file", ExcelFile).Msg("Excel file not found")
-		log.Error().Msg("Please ensure the IELTS.xlsx file is in the words/ directory.")
+		log.Error(err).Str("file", ExcelFile).Msg("Excel file not found")
+		log.Error(errors.New("")).Msg("Please ensure the IELTS.xlsx file is in the words/ directory.")
 		os.Exit(1)
 	}
 
@@ -32,7 +31,7 @@ func main() {
 
 	// Validate file
 	if err := reader.ValidateFile(); err != nil {
-		log.Error().Err(err).Msg("Error validating file")
+		log.Error(err).Msg("Error validating file")
 		os.Exit(1)
 	}
 
@@ -40,7 +39,7 @@ func main() {
 	log.Info().Msg("Reading vocabulary data...")
 	wordList, err := reader.ReadWords()
 	if err != nil {
-		log.Error().Err(err).Msg("Error reading Excel file")
+		log.Error(err).Msg("Error reading Excel file")
 		os.Exit(1)
 	}
 
@@ -55,7 +54,7 @@ func main() {
 	// Show file info
 	info, err := reader.GetFileInfo()
 	if err != nil {
-		log.Warn().Err(err).Msg("Could not get file info")
+		log.Error(err).Msg("Could not get file info")
 	} else {
 		log.Info().Msg("File Information:")
 		fmt.Println(info) // Keep fmt.Println for formatted file info
@@ -65,6 +64,6 @@ func main() {
 
 	// Start the web server
 	if err := webServer.Start(WebPort); err != nil {
-		log.Fatal().Err(err).Msg("Failed to start web server")
+		log.Fatal().Str("err", err.Error()).Msg("Failed to start web server")
 	}
 }
