@@ -8,6 +8,7 @@ let translationsVisible = true;
 let selectedCard = null;
 let selectedAccent = 'uk'; // Default to UK accent
 let knownWords = new Set(); // Track known words
+let wordTimestamps = new Map(); // Track word marking timestamps
 let originalWordOrder = []; // Store original word order for restore functionality
 
 // Initialize the application
@@ -53,6 +54,9 @@ function initializeApp() {
     
     // Apply known word states to template cards
     applyKnownWordStates();
+    
+    // Load word timestamps
+    loadWordTimestamps();
     
     // Store original word order for template-rendered cards
     storeOriginalOrderFromTemplate();
@@ -1136,7 +1140,9 @@ function closeWordActionModal() {
 
 function markWordAsKnown(word) {
     knownWords.add(word);
+    wordTimestamps.set(word, new Date().toISOString());
     saveKnownWords();
+    saveWordTimestamps();
     updateWordCardAppearance(word, true);
     showToast(`"${word}" 已标记为认识`, 'success');
     closeWordActionModal();
@@ -1144,7 +1150,9 @@ function markWordAsKnown(word) {
 
 function markWordAsUnknown(word) {
     knownWords.delete(word);
+    wordTimestamps.delete(word);
     saveKnownWords();
+    saveWordTimestamps();
     updateWordCardAppearance(word, false);
     showToast(`"${word}" 已标记为不认识`, 'info');
     closeWordActionModal();
@@ -1191,6 +1199,7 @@ function resetCurrentPage() {
         const word = card.getAttribute('data-word');
         if (word && knownWords.has(word)) {
             knownWords.delete(word);
+            wordTimestamps.delete(word);
             card.classList.remove('known-word');
             resetCount++;
         }
@@ -1198,6 +1207,7 @@ function resetCurrentPage() {
     
     // Save changes
     saveKnownWords();
+    saveWordTimestamps();
     
     // Close modal
     closeResetOptionsModal();
@@ -1216,11 +1226,13 @@ function resetAllPages() {
     if (confirm('确定要重置所有页面的单词标记状态吗？这将清除所有已认识单词的记录。')) {
         const totalKnown = knownWords.size;
         
-        // Clear all known words
+        // Clear all known words and timestamps
         knownWords.clear();
+        wordTimestamps.clear();
         
         // Save to localStorage
         saveKnownWords();
+        saveWordTimestamps();
         
         // Close modal
         closeResetOptionsModal();
@@ -1292,6 +1304,137 @@ function closeWordDetailModal() {
     modal.style.display = 'none';
 }
 
+function showStatisticsModal() {
+    const modal = document.getElementById('statisticsModal');
+    modal.style.display = 'block';
+    updateStatisticsData();
+}
+
+function closeStatisticsModal() {
+    const modal = document.getElementById('statisticsModal');
+    modal.style.display = 'none';
+}
+
+function updateStatisticsData() {
+    // Update overview statistics
+    const totalKnownWords = knownWords.size;
+    const dailyStats = calculateDailyWordCount();
+    const totalLearningDays = dailyStats.length;
+    const averageWordsPerDay = totalLearningDays > 0 ? Math.round(totalKnownWords / totalLearningDays) : 0;
+
+    document.getElementById('totalKnownWords').textContent = totalKnownWords;
+    document.getElementById('totalLearningDays').textContent = totalLearningDays;
+    document.getElementById('averageWordsPerDay').textContent = averageWordsPerDay;
+
+    // Update chart
+    updateDailyProgressChart(dailyStats);
+}
+
+function calculateDailyWordCount() {
+    const dailyCount = new Map();
+    
+    wordTimestamps.forEach((timestamp) => {
+        const date = new Date(timestamp).toISOString().split('T')[0];
+        dailyCount.set(date, (dailyCount.get(date) || 0) + 1);
+    });
+
+    // Get last 30 days of data
+    const result = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const count = dailyCount.get(dateStr) || 0;
+        
+        result.push({
+            date: dateStr,
+            count: count,
+            displayDate: `${date.getMonth() + 1}/${date.getDate()}`
+        });
+    }
+
+    return result;
+}
+
+function updateDailyProgressChart(dailyStats) {
+    const chartDom = document.getElementById('dailyProgressChart');
+    if (!chartDom) return;
+
+    // Initialize chart
+    const myChart = echarts.init(chartDom);
+    
+    const option = {
+        title: {
+            text: '每日学习进度',
+            left: 'center',
+            top: 10
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            },
+            formatter: function(params) {
+                const data = params[0];
+                return `${data.name}<br/>新增单词: ${data.value}个`;
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: dailyStats.map(item => item.displayDate),
+            axisLabel: {
+                rotate: 45
+            }
+        },
+        yAxis: {
+            type: 'value',
+            name: '单词数量',
+            minInterval: 1
+        },
+        series: [
+            {
+                name: '新增单词',
+                type: 'line',
+                smooth: true,
+                data: dailyStats.map(item => item.count),
+                itemStyle: {
+                    color: '#28a745'
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        {
+                            offset: 0,
+                            color: 'rgba(40, 167, 69, 0.3)'
+                        },
+                        {
+                            offset: 1,
+                            color: 'rgba(40, 167, 69, 0.1)'
+                        }
+                    ])
+                },
+                emphasis: {
+                    focus: 'series'
+                }
+            }
+        ]
+    };
+
+    myChart.setOption(option);
+
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        myChart.resize();
+    });
+}
+
 function getPhonetic(word) {
     // Simple phonetic approximation - in real app this would come from dictionary API
     const phonetics = {
@@ -1327,6 +1470,27 @@ function saveKnownWords() {
         localStorage.setItem('knownWords', JSON.stringify(Array.from(knownWords)));
     } catch (e) {
         console.error('Error saving known words:', e);
+    }
+}
+
+function loadWordTimestamps() {
+    const saved = localStorage.getItem('wordTimestamps');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            wordTimestamps = new Map(parsed);
+        } catch (e) {
+            console.error('Error loading word timestamps:', e);
+            wordTimestamps = new Map();
+        }
+    }
+}
+
+function saveWordTimestamps() {
+    try {
+        localStorage.setItem('wordTimestamps', JSON.stringify(Array.from(wordTimestamps)));
+    } catch (e) {
+        console.error('Error saving word timestamps:', e);
     }
 }
 

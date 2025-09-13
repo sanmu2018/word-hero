@@ -1417,6 +1417,77 @@ body {
     transform: translateY(0);
 }
 
+/* Statistics button */
+.stats-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #17a2b8;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}
+
+.stats-btn:hover {
+    background: #138496;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+}
+
+.stats-btn:active {
+    transform: scale(1.05);
+}
+
+/* Statistics modal styles */
+.statistics-modal-content {
+    width: 90%;
+    max-width: 800px;
+    margin: 20px auto;
+}
+
+.statistics-overview {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+
+.stats-card {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    flex: 1;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #28a745;
+    margin-bottom: 5px;
+}
+
+.stats-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.chart-container {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
 /* Responsive design for reset modal */
 @media (max-width: 768px) {
     .reset-options-grid {
@@ -1434,6 +1505,20 @@ body {
     }
     
     .reset-option-icon {
+        font-size: 2rem;
+    }
+    
+    .statistics-overview {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .statistics-modal-content {
+        width: 95%;
+        margin: 20px 10px;
+    }
+    
+    .stats-number {
         font-size: 2rem;
     }
 }
