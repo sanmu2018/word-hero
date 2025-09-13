@@ -9,7 +9,13 @@
       "Bash(go run:*)",
       "Bash(.word-hero.exe)",
       "Bash(bashes)",
-      "Bash(/bashes)"
+      "Bash(/bashes)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(./word-hero.exe)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []
