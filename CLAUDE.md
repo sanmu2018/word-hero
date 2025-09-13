@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Word Hero is a web-based Go application for learning IELTS vocabulary, offering a modern web interface. It reads vocabulary data from `words/IELTS.xlsx` (3673 words) and displays it in a paginated format (25 words per page) with interactive navigation and search functionality.
+Word Hero is a web-based Go application for learning IELTS vocabulary, offering a modern web interface. It uses the Gin web framework for efficient HTTP routing and middleware, reads vocabulary data from `configs/words/IELTS.xlsx` (3673 words) and displays it in a paginated format (25 words per page) with interactive navigation and search functionality.
 
 ## Project Architecture
 
@@ -29,7 +29,7 @@ word-hero/
 ├── web/                   # Web assets
 │   ├── templates/         # HTML templates
 │   └── static/            # CSS, JavaScript, images
-├── words/                 # Data files
+├── configs/words/         # Data files
 │   └── IELTS.xlsx        # Vocabulary data source
 ├── build/                 # Build artifacts
 └── go.mod, go.sum        # Go module files
@@ -38,10 +38,11 @@ word-hero/
 ### Architecture Layers
 
 #### 1. Presentation Layer (internal/router)
-- **web_server.go**: HTTP server, route handling, middleware
-- Manages web requests and API endpoints
+- **web_server.go**: HTTP server using Gin framework, route handling, middleware
+- Manages web requests and API endpoints with Gin's routing system
 - Handles template rendering and static file serving
-- Implements request logging and error handling
+- Implements request logging and error handling using Gin middleware
+- Uses Gin's context for efficient parameter handling and JSON responses
 
 #### 2. Service Layer (internal/service)
 - **vocabulary_service.go**: Business logic for vocabulary operations
@@ -81,8 +82,10 @@ word-hero/
 
 ### Prerequisites
 - Go installed on the system
-- Excel file: `words/IELTS.xlsx` (3673 IELTS vocabulary words)
-- External dependency: `github.com/tealeg/xlsx/v3` for Excel file reading
+- Excel file: `configs/words/IELTS.xlsx` (3673 IELTS vocabulary words)
+- External dependencies:
+  - `github.com/gin-gonic/gin` for web framework
+  - `github.com/tealeg/xlsx/v3` for Excel file reading
 
 ### Build and Run Commands
 
@@ -92,14 +95,14 @@ word-hero/
 - `./build/word-hero` - Run built application (Windows: `build/word-hero.exe`)
 
 ### Data Requirements
-- Vocabulary data: `words/IELTS.xlsx`
+- Vocabulary data: `configs/words/IELTS.xlsx`
 - Worksheet: "雅思真经词汇"
 - Data structure: Column 3 contains English words, Column 8 contains Chinese translations
 - Header row: Automatically skipped
 - Total vocabulary: 3673 words
 
 ### Testing
-- Web server: Test at `http://localhost:8082` in browser
+- Web server: Test at `http://localhost:8080` in browser
 
 ## User Interface
 
@@ -116,22 +119,31 @@ word-hero/
 #### API Endpoints
 - `GET /` - Main interface
 - `GET /api/words` - Paginated vocabulary data
-- `GET /api/page/{number}` - Specific page
+- `GET /api/page/:pageNumber` - Specific page
 - `GET /api/search?q={query}` - Search functionality
 - `GET /api/stats` - Application statistics
+
+#### Gin Framework Benefits
+- **Efficient Routing**: Parameter-based routing with `:pageNumber` parameters
+- **Middleware Support**: Built-in logging, recovery, and custom middleware
+- **Context Handling**: Simplified parameter access with `c.Query()` and `c.Param()`
+- **JSON Responses**: Automatic JSON serialization with `c.JSON()`
+- **HTML Templates**: Built-in template rendering with `c.HTML()`
 
 ## Current Implementation Status
 
 ### ✅ Completed Features
-- Web-based application
+- Web-based application using Gin framework
 - Direct Excel file reading (3673 vocabulary words)
 - Modular architecture with separate concerns
 - Pagination system (25 words per page, 147 total pages)
 - Modern web interface with search functionality
-- Complete API endpoints
+- Complete API endpoints with parameter-based routing
 - Error handling and user feedback
 - Responsive design for mobile devices
 - Keyboard shortcuts and accessibility
+- Built-in middleware for logging and recovery
+- Efficient HTTP routing and context handling
 
 ### 🔄 Future Enhancements
 - Learning progress tracking and spaced repetition
@@ -331,10 +343,11 @@ netstat -tlnp | grep :8080
 
 ## Important Notes
 - The application reads Excel files directly using `github.com/tealeg/xlsx/v3`
-- Data is read from `words/IELTS.xlsx` worksheet "雅思真经词汇"
+- Data is read from `configs/words/IELTS.xlsx` worksheet "雅思真经词汇"
 - Column 3 contains English words, Column 8 contains Chinese translations
-- Web server runs on port 8082 by default (configurable via configs/config.yaml)
+- Web server runs on port 8080 by default (configurable via configs/config.yaml)
 - Total vocabulary: 3673 words across 147 pages
+- Web framework: Gin provides efficient HTTP routing, middleware, and context handling
 
 ## Development Guidelines
 
