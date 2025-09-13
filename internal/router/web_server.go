@@ -96,7 +96,6 @@ func (ws *WebServer) setupRoutes() {
 	{
 		// Public vocabulary endpoints
 		api.GET("/words", ws.apiWordsHandler)
-		api.GET("/page/:pageNumber", ws.apiPageHandler)
 		api.GET("/search", ws.apiSearchHandler)
 		api.GET("/stats", ws.apiStatsHandler)
 
@@ -208,34 +207,6 @@ func (ws *WebServer) apiWordsHandler(c *gin.Context) {
 	})
 }
 
-// apiPageHandler handles API requests for specific pages
-func (ws *WebServer) apiPageHandler(c *gin.Context) {
-	// Extract page number from URL parameter
-	pageNum, err := strconv.Atoi(c.Param("pageNumber"))
-	if err != nil || pageNum < 1 {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid page number",
-		})
-		return
-	}
-
-	// Get page data using service layer
-	responseData, err := ws.pagerService.GetPageData(pageNum, 12) // Use default page size for specific page requests
-	if err != nil {
-		log.Error(err).Int("page", pageNum).Msg("Failed to get page data for API")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: responseData,
-	})
-}
 
 // apiSearchHandler handles search requests using service layer
 func (ws *WebServer) apiSearchHandler(c *gin.Context) {
