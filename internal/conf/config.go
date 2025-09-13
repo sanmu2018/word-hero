@@ -37,7 +37,7 @@ func LoadConfig() (*Config, error) {
 			Host: "0.0.0.0",
 		},
 		App: AppConfig{
-			ExcelFile: "words/IELTS.xlsx",
+			ExcelFile: "configs/words/IELTS.xlsx",
 			PageSize:  24,
 			StaticDir: "web/static",
 		},

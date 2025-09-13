@@ -93,7 +93,7 @@ word-hero/
 ### 命令行版本
 ```bash
 # 编译
-go build -o word-hero.exe main.go excel_reader.go models.go pager.go ui.go
+go build -o word-hero.exe .
 
 # 运行
 ./word-hero.exe

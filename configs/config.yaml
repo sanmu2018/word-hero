@@ -7,7 +7,7 @@ server:
 app:
   name: "Word Hero"
   page_size: 25
-  excel_file: "words/IELTS.xlsx"
+  excel_file: "configs/words/IELTS.xlsx"
 
 # Logging settings
 logging:

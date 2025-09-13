@@ -29,7 +29,6 @@ func main() {
 	// Check if Excel file exists
 	if _, err := os.Stat(config.App.ExcelFile); err != nil {
 		log.Error(err).Str("file", config.App.ExcelFile).Msg("Excel file not found")
-		log.Info().Msg("Please ensure the IELTS.xlsx file is in the words/ directory.")
 		os.Exit(1)
 	}
 
