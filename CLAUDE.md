@@ -8,22 +8,74 @@ Word Hero is a web-based Go application for learning IELTS vocabulary, offering 
 
 ## Project Architecture
 
-### Core Components
-- **models.go**: Defines Word, WordList, and Page data structures
-- **excel_reader.go**: Handles reading vocabulary from Excel files using xlsx library
-- **pager.go**: Implements pagination logic with 25 words per page
-- **main.go**: Web application entry point
-- **web_server.go**: Web server and API handlers
-- **web/templates/**: HTML templates for web interface
-- **web/static/**: CSS, JavaScript, and other static assets
+### Project Structure
+```
+word-hero/
+├── cmd/                    # Application entry points
+│   └── main.go            # Main application entry point
+├── internal/              # Private application code
+│   ├── conf/              # Configuration management
+│   │   └── config.go     # Configuration loading and management
+│   ├── dao/               # Data Access Objects (data layer)
+│   │   ├── models.go      # Data models and structures
+│   │   └── excel_reader.go # Excel file operations
+│   ├── service/           # Business logic layer
+│   │   ├── vocabulary_service.go # Vocabulary operations
+│   │   └── pager_service.go      # Pagination logic
+│   └── router/            # HTTP routing layer
+│       └── web_server.go  # Web server and API handlers
+├── configs/               # Configuration files
+│   └── config.yaml        # Application configuration
+├── web/                   # Web assets
+│   ├── templates/         # HTML templates
+│   └── static/            # CSS, JavaScript, images
+├── words/                 # Data files
+│   └── IELTS.xlsx        # Vocabulary data source
+├── build/                 # Build artifacts
+└── go.mod, go.sum        # Go module files
+```
+
+### Architecture Layers
+
+#### 1. Presentation Layer (internal/router)
+- **web_server.go**: HTTP server, route handling, middleware
+- Manages web requests and API endpoints
+- Handles template rendering and static file serving
+- Implements request logging and error handling
+
+#### 2. Service Layer (internal/service)
+- **vocabulary_service.go**: Business logic for vocabulary operations
+- **pager_service.go**: Business logic for pagination and data management
+- Orchestrates data flow between presentation and data layers
+- Implements search, validation, and business rules
+
+#### 3. Data Access Layer (internal/dao)
+- **models.go**: Data structures and domain models
+- **excel_reader.go**: Data persistence and retrieval operations
+- Handles all database/file operations
+- Manages data transformation and validation
+
+#### 4. Configuration Layer (internal/conf)
+- **config.go**: Application configuration management
+- Handles environment variables and YAML configuration
+- Provides configuration validation and defaults
 
 ### Data Flow
-1. Application starts and reads vocabulary data from `words/IELTS.xlsx`
-2. Data is parsed from Excel (column 3: English, column 8: Chinese)
-3. Data is stored in WordList structure
-4. Pager handles pagination (25 words per page)
-5. Web server provides REST API endpoints
-6. Frontend displays words and handles user navigation
+1. **Application Start**: `cmd/main.go` initializes configuration and services
+2. **Configuration Loading**: `internal/conf/config.go` loads settings from YAML and environment
+3. **Data Initialization**: `internal/dao/excel_reader.go` reads vocabulary from Excel
+4. **Service Setup**: `internal/service/` layer initializes business logic services
+5. **Web Server Start**: `internal/router/web_server.go` starts HTTP server with routes
+6. **Request Processing**: HTTP requests flow through layers:
+   - Router → Service → DAO → Data Source
+   - Response flows back: Data Source → DAO → Service → Router → Client
+
+### Design Patterns Used
+- **Layered Architecture**: Clear separation of concerns across layers
+- **Service Layer Pattern**: Business logic isolated in service layer
+- **Data Access Object (DAO)**: Data operations abstracted from business logic
+- **Dependency Injection**: Services are injected and dependencies managed explicitly
+- **Configuration Management**: Centralized configuration with environment variable support
 
 ## Development Environment
 
@@ -34,10 +86,10 @@ Word Hero is a web-based Go application for learning IELTS vocabulary, offering 
 
 ### Build and Run Commands
 
-#### Web Version
-- `go build -o word-hero.exe main.go web_server.go excel_reader.go models.go pager.go` - Build web app
-- `go run main.go web_server.go excel_reader.go models.go pager.go` - Run web directly
-- `./word-hero.exe` - Run web server on port 8082
+#### Manual Go Commands
+- `go build -o build/word-hero ./cmd` - Build for current platform
+- `go run ./cmd` - Run directly from source
+- `./build/word-hero` - Run built application (Windows: `build/word-hero.exe`)
 
 ### Data Requirements
 - Vocabulary data: `words/IELTS.xlsx`
@@ -109,13 +161,36 @@ Word Hero is a web-based Go application for learning IELTS vocabulary, offering 
 
 ## Development Standards
 
-### Go Code Standards
+### Go Project Structure Standards
+
+#### Directory Organization
+- **cmd/**: Application entry points and main functions
+- **internal/**: Private application code (not importable by other projects)
+- **internal/conf/**: Configuration management
+- **internal/dao/**: Data Access Objects and data models
+- **internal/service/**: Business logic and service layer
+- **internal/router/**: HTTP routing and web server logic
+- **configs/**: Configuration files (YAML, JSON, etc.)
+- **web/**: Web assets (templates, static files)
+- **build/**: Compiled binaries and build artifacts
+
+#### Go Module Standards
+- **Module Naming**: Use repository URL for module name (e.g., `github.com/user/project`)
+- **Package Naming**: Use lowercase, concise names that describe package purpose
+- **Internal Packages**: Use `internal/` for packages that should not be imported by external projects
+- **Cyclic Dependencies**: Avoid cyclic dependencies between packages
 
 #### Code Structure
 - **File Size Limit**: Individual Go files must not exceed 1000 lines. If a file approaches this limit, consider refactoring into smaller, focused modules.
 - **Package Organization**: Each `.go` file should focus on a single responsibility
 - **Function Length**: Keep functions concise and focused on a single task
 - **Exported Functions**: All exported functions must have Go-style comments explaining purpose, parameters, and return values
+
+#### Architecture Guidelines
+- **Layered Architecture**: Follow the established layer pattern (router → service → dao)
+- **Dependency Direction**: Dependencies should flow downward (router depends on service, service depends on dao)
+- **Interface Segregation**: Define interfaces at the layer boundaries
+- **Single Responsibility**: Each layer should have a single, well-defined responsibility
 
 #### Code Quality
 - **Error Handling**: Always handle errors appropriately; never ignore errors without explicit reason
@@ -262,13 +337,43 @@ netstat -tlnp | grep :8080
 - Total vocabulary: 3673 words across 147 pages
 
 ## Development Guidelines
-- **Code Standards Compliance**: All development must strictly follow the Development Standards section above
+
+### Architecture Compliance
+- **Project Structure**: All new code must follow the established directory structure (cmd/, internal/, configs/, etc.)
+- **Layered Architecture**: Maintain clear separation between router, service, and dao layers
+- **Dependency Direction**: Ensure dependencies flow downward (router → service → dao)
+- **Internal Packages**: Use `internal/` for application-specific code that should not be imported externally
+
+### Code Standards Compliance
 - **File Size Management**: Monitor file sizes and refactor when approaching 800 lines; mandatory refactor at 1000 lines
+- **Code Quality**: All development must strictly follow the Development Standards section above
+- **Testing**: Write comprehensive tests for all service layer functionality
+- **Error Handling**: Implement proper error handling at all layers with user-friendly messages
+
+### Development Workflow
+- **Build Commands**: Use manual Go commands for building and running
 - **Environment Awareness**: Always check `.tmp.md` for current environment and adapt commands accordingly
 - **Cross-Platform Compatibility**: Ensure all system commands work on the current development environment
 - **After debugging/testing completion**: Always stop all running background services to free up ports
+
+### Configuration Management
 - **Configuration**: Server settings are loaded from `configs/config.yaml` with environment variable fallbacks
+- **Environment Variables**: Use environment variables for sensitive configuration and deployment-specific settings
+- **Configuration Validation**: Implement validation for all configuration values
+
+### Process Management
 - **Background services**: Use KillBash tool to terminate any lingering background processes after development sessions
+- **Port Management**: Ensure no conflicts with default port (8082) or configured ports
+- **Service Cleanup**: Always clean up temporary files and build artifacts
+
+### Code Quality and Reviews
 - **Code Reviews**: All code changes must be reviewed against the documented standards before committing
 - **Documentation Updates**: Update documentation when adding new features or changing existing functionality
 - **Environment Tracking**: Keep `.tmp.md` updated when switching development environments
+- **Git Workflow**: Follow established git practices for branching, committing, and merging
+
+### Build and Deployment
+- **Build Artifacts**: All build artifacts should be placed in the `build/` directory
+- **Manual Building**: Use Go commands directly for building and testing
+- **Version Management**: Maintain version information in configuration and build process
+- **Dependency Management**: Keep Go modules updated and secure

@@ -15,7 +15,9 @@
       "Bash(./word-hero.exe)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Read(//c/code/1.aistudio/apworkshop-bff/**)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

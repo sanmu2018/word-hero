@@ -1,4 +1,4 @@
-package main
+package router
 
 import (
 	"encoding/json"
@@ -10,39 +10,46 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sanmu2018/word-hero/internal/dao"
+	"github.com/sanmu2018/word-hero/internal/service"
 	"github.com/sanmu2018/word-hero/log"
 )
 
-// WebServer handles the web application
+// WebServer handles the web application with layered architecture
 type WebServer struct {
-	wordList    *WordList
-	pager       *Pager
-	templateDir string
-	mu          sync.RWMutex
+	vocabularyService *service.VocabularyService
+	pagerService      *service.PagerService
+	templateDir       string
+	mu                sync.RWMutex
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(wordList *WordList, pager *Pager, templateDir string) *WebServer {
+func NewWebServer(vocabularyService *service.VocabularyService, pagerService *service.PagerService, templateDir string) *WebServer {
+	log.Info().Str("templateDir", templateDir).Msg("Creating web server")
+
+	// Set up service dependencies
+	vocabularyService.SetPagerService(pagerService)
+
 	return &WebServer{
-		wordList:    wordList,
-		pager:       pager,
-		templateDir: templateDir,
+		vocabularyService: vocabularyService,
+		pagerService:      pagerService,
+		templateDir:       templateDir,
 	}
 }
 
 // PageData represents the data passed to templates
 type PageData struct {
-	Words       []Word
-	CurrentPage int
-	TotalPages  int
-	TotalWords  int
-	PageSize    int
-	HasPrev     bool
-	HasNext     bool
-	PrevPage    int
-	NextPage    int
-	StartIndex  int
-	EndIndex    int
+	Words       []dao.Word `json:"words"`
+	CurrentPage int       `json:"current_page"`
+	TotalPages  int       `json:"total_pages"`
+	TotalWords  int       `json:"total_words"`
+	PageSize    int       `json:"page_size"`
+	HasPrev     bool      `json:"has_prev"`
+	HasNext     bool      `json:"has_next"`
+	PrevPage    int       `json:"prev_page"`
+	NextPage    int       `json:"next_page"`
+	StartIndex  int       `json:"start_index"`
+	EndIndex    int       `json:"end_index"`
 }
 
 // APIResponse represents the JSON response for API calls
@@ -61,20 +68,20 @@ func (ws *WebServer) Start(port int) error {
 	fs := http.FileServer(http.Dir("web/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// Set up routes with log middleware
-	http.HandleFunc("/", ws.logMiddleware(ws.homeHandler(templates)))
-	http.HandleFunc("/api/words", ws.logMiddleware(ws.apiWordsHandler))
-	http.HandleFunc("/api/page/", ws.logMiddleware(ws.apiPageHandler))
-	http.HandleFunc("/api/search", ws.logMiddleware(ws.apiSearchHandler))
-	http.HandleFunc("/api/stats", ws.logMiddleware(ws.apiStatsHandler))
+	// Set up routes with middleware
+	http.HandleFunc("/", ws.loggingMiddleware(ws.homeHandler(templates)))
+	http.HandleFunc("/api/words", ws.loggingMiddleware(ws.apiWordsHandler))
+	http.HandleFunc("/api/page/", ws.loggingMiddleware(ws.apiPageHandler))
+	http.HandleFunc("/api/search", ws.loggingMiddleware(ws.apiSearchHandler))
+	http.HandleFunc("/api/stats", ws.loggingMiddleware(ws.apiStatsHandler))
 
 	log.Info().Int("port", port).Msg("Starting web server")
 	log.Info().Str("url", fmt.Sprintf("http://localhost:%d", port)).Msg("Open in browser")
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
 
-// logMiddleware logs HTTP requests
-func (ws *WebServer) logMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// loggingMiddleware logs HTTP requests with performance metrics
+func (ws *WebServer) loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -88,7 +95,7 @@ func (ws *WebServer) logMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			Str("path", r.URL.Path).
 			Str("query", r.URL.RawQuery).
 			Str("ip", r.RemoteAddr).
-			Dur("cost", duration).
+			Dur("duration", duration).
 			Msg("HTTP request")
 	}
 }
@@ -104,7 +111,7 @@ func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc 
 			}
 		}
 
-		// Get page size from query parameter or cookie
+		// Get page size from query parameter
 		pageSize := 24 // Default page size
 		if pageSizeStr := r.URL.Query().Get("pageSize"); pageSizeStr != "" {
 			if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
@@ -112,28 +119,31 @@ func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc 
 			}
 		}
 
-		// Create temporary pager with requested page size
-		tempPager := NewPager(ws.wordList, pageSize)
-
-		// Get page data
-		page, err := tempPager.GetPage(pageNum)
+		// Get page data using service layer
+		page, err := ws.vocabularyService.GetWordsByPage(pageNum, pageSize)
 		if err != nil {
+			log.Error(err).Int("page", pageNum).Int("pageSize", pageSize).Msg("Failed to get page data")
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// Calculate indices
-		startIndex, endIndex, _ := tempPager.GetPageRange(pageNum)
+		startIndex, endIndex, err := ws.pagerService.GetPageRange(pageNum)
+		if err != nil {
+			log.Error(err).Msg("Failed to get page range")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
 		// Prepare template data
 		data := PageData{
 			Words:       page.Words,
 			CurrentPage: page.Number,
 			TotalPages:  page.TotalPages,
-			TotalWords:  tempPager.GetWordCount(),
+			TotalWords:  ws.pagerService.GetWordCount(),
 			PageSize:    page.PageSize,
-			HasPrev:     tempPager.HasPreviousPage(pageNum),
-			HasNext:     tempPager.HasNextPage(pageNum),
+			HasPrev:     ws.pagerService.HasPreviousPage(pageNum),
+			HasNext:     ws.pagerService.HasNextPage(pageNum),
 			PrevPage:    pageNum - 1,
 			NextPage:    pageNum + 1,
 			StartIndex:  startIndex,
@@ -143,12 +153,13 @@ func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc 
 		// Render template
 		err = templates.ExecuteTemplate(w, "index.html", data)
 		if err != nil {
+			log.Error(err).Msg("Failed to execute template")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
 
-// apiWordsHandler handles API requests for words
+// apiWordsHandler handles API requests for words with pagination
 func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -170,11 +181,10 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug().Int("page", page).Int("pageSize", pageSize).Msg("API words request")
 
-	// Create temporary pager with requested page size
-	tempPager := NewPager(ws.wordList, pageSize)
-	pageData, err := tempPager.GetPage(page)
+	// Get page data using service layer
+	responseData, err := ws.pagerService.GetPageData(page)
 	if err != nil {
-		log.Error(err).Str("page", strconv.Itoa(page)).Msg("Failed to get page data")
+		log.Error(err).Int("page", page).Msg("Failed to get page data for API")
 		json.NewEncoder(w).Encode(APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -182,26 +192,28 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startIndex, endIndex, _ := tempPager.GetPageRange(page)
-
-	response := APIResponse{
-		Success: true,
-		Data: map[string]interface{}{
-			"words":       pageData.Words,
-			"currentPage": pageData.Number,
-			"totalPages":  pageData.TotalPages,
-			"totalWords":  tempPager.GetWordCount(),
-			"pageSize":    pageData.PageSize,
-			"startIndex":  startIndex,
-			"endIndex":    endIndex,
-			"hasPrev":     tempPager.HasPreviousPage(page),
-			"hasNext":     tempPager.HasNextPage(page),
-			"prevPage":    page - 1,
-			"nextPage":    page + 1,
-		},
+	// Always update page size in pager service to ensure consistency
+	_, err = ws.pagerService.UpdatePageSize(pageSize)
+	if err != nil {
+		log.Error(err).Int("pageSize", pageSize).Msg("Failed to update page size")
+		json.NewEncoder(w).Encode(APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+	// Get updated page data with new page size
+	responseData, err = ws.pagerService.GetPageData(page)
+	if err != nil {
+		log.Error(err).Int("page", page).Msg("Failed to get updated page data")
+		json.NewEncoder(w).Encode(APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
 	}
 
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(responseData)
 }
 
 // apiPageHandler handles API requests for specific pages
@@ -227,8 +239,10 @@ func (ws *WebServer) apiPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := ws.pager.GetPage(pageNum)
+	// Get page data using service layer
+	responseData, err := ws.pagerService.GetPageData(pageNum)
 	if err != nil {
+		log.Error(err).Int("page", pageNum).Msg("Failed to get page data for API")
 		json.NewEncoder(w).Encode(APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -236,29 +250,14 @@ func (ws *WebServer) apiPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startIndex, endIndex, _ := ws.pager.GetPageRange(pageNum)
-
-	response := APIResponse{
-		Success: true,
-		Data: map[string]interface{}{
-			"words":       page.Words,
-			"currentPage": page.Number,
-			"totalPages":  page.TotalPages,
-			"totalWords":  ws.pager.GetWordCount(),
-			"pageSize":    page.PageSize,
-			"startIndex":  startIndex,
-			"endIndex":    endIndex,
-		},
-	}
-
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(responseData)
 }
 
-// apiSearchHandler handles search requests
+// apiSearchHandler handles search requests using service layer
 func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if query == "" {
 		log.Warn().Msg("Search query is empty")
 		json.NewEncoder(w).Encode(APIResponse{
@@ -270,15 +269,16 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug().Str("query", query).Msg("Search request")
 
-	var results []Word
-	ws.mu.RLock()
-	for _, word := range ws.wordList.Words {
-		if strings.Contains(strings.ToLower(word.English), query) ||
-			strings.Contains(strings.ToLower(word.Chinese), query) {
-			results = append(results, word)
-		}
+	// Use service layer for search
+	results, err := ws.vocabularyService.SearchWords(query)
+	if err != nil {
+		log.Error(err).Str("query", query).Msg("Search failed")
+		json.NewEncoder(w).Encode(APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
 	}
-	ws.mu.RUnlock()
 
 	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
 
@@ -294,18 +294,20 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// apiStatsHandler handles statistics requests
+// apiStatsHandler handles statistics requests using service layer
 func (ws *WebServer) apiStatsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Get stats from service layer
+	stats := ws.vocabularyService.GetStats()
+
+	// Add pagination stats
+	stats["totalPages"] = ws.pagerService.GetTotalPages()
+	stats["pageSize"] = ws.pagerService.GetPageSize()
+
 	response := APIResponse{
 		Success: true,
-		Data: map[string]interface{}{
-			"totalWords": ws.pager.GetWordCount(),
-			"totalPages": ws.pager.GetTotalPages(),
-			"pageSize":   ws.pager.pageSize,
-			"fileSource": "words/IELTS.xlsx",
-		},
+		Data:    stats,
 	}
 
 	json.NewEncoder(w).Encode(response)

@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sanmu2018/word-hero/internal/conf"
+	"github.com/sanmu2018/word-hero/internal/dao"
+	"github.com/sanmu2018/word-hero/internal/router"
+	"github.com/sanmu2018/word-hero/internal/service"
 	"github.com/sanmu2018/word-hero/log"
 )
 
 func main() {
 	// Load configuration
-	config, err := LoadConfig()
+	config, err := conf.LoadConfig()
 	if err != nil {
 		log.Error(err).Msg("Failed to load configuration")
 		os.Exit(1)
@@ -29,18 +33,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize Excel reader
-	reader := NewExcelReader(config.App.ExcelFile)
+	// Initialize data access layer
+	excelReader := dao.NewExcelReader(config.App.ExcelFile)
 
 	// Validate file
-	if err := reader.ValidateFile(); err != nil {
+	if err := excelReader.ValidateFile(); err != nil {
 		log.Error(err).Msg("Error validating file")
 		os.Exit(1)
 	}
 
 	// Read words from Excel file
 	log.Info().Msg("Reading vocabulary data...")
-	wordList, err := reader.ReadWords()
+	wordList, err := excelReader.ReadWords()
 	if err != nil {
 		log.Error(err).Msg("Error reading Excel file")
 		os.Exit(1)
@@ -48,14 +52,15 @@ func main() {
 
 	log.Info().Int("count", len(wordList.Words)).Msg("Successfully loaded vocabulary words")
 
-	// Initialize pager
-	pager := NewPager(wordList, config.App.PageSize)
+	// Initialize service layer
+	pagerService := service.NewPagerService(wordList, config.App.PageSize)
+	vocabularyService := service.NewVocabularyService(wordList, excelReader)
 
-	// Initialize web server
-	webServer := NewWebServer(wordList, pager, "web/templates")
+	// Initialize router layer
+	webServer := router.NewWebServer(vocabularyService, pagerService, "web/templates")
 
 	// Show file info
-	info, err := reader.GetFileInfo()
+	info, err := excelReader.GetFileInfo()
 	if err != nil {
 		log.Error(err).Msg("Could not get file info")
 	} else {

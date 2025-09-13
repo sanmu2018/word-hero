@@ -1,4 +1,4 @@
-package main
+package dao
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/tealeg/xlsx/v3"
+	"github.com/sanmu2018/word-hero/log"
 )
 
 // ExcelReader handles reading vocabulary from Excel files
@@ -20,8 +21,15 @@ func NewExcelReader(filePath string) *ExcelReader {
 	}
 }
 
+// GetFilePath returns the Excel file path
+func (er *ExcelReader) GetFilePath() string {
+	return er.filePath
+}
+
 // ReadWords reads words from Excel file
 func (er *ExcelReader) ReadWords() (*WordList, error) {
+	log.Info().Str("file", er.filePath).Msg("Reading Excel file")
+
 	// Open the Excel file
 	xlFile, err := xlsx.OpenFile(er.filePath)
 	if err != nil {
@@ -32,6 +40,8 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 
 	// Iterate through all sheets
 	for _, sheet := range xlFile.Sheets {
+		log.Debug().Str("sheet", sheet.Name).Msg("Processing sheet")
+
 		// Iterate through all rows
 		err := sheet.ForEachRow(func(row *xlsx.Row) error {
 			rowIndex := row.GetCoordinate()
@@ -46,7 +56,7 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 				cellCount++
 				return nil
 			})
-			
+
 			if cellCount >= 8 {
 				var english, chinese string
 				cellIndex := 0
@@ -73,7 +83,7 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 			}
 			return nil
 		})
-		
+
 		if err != nil {
 			return nil, fmt.Errorf("error reading rows: %v", err)
 		}
@@ -82,6 +92,8 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 	if len(words) == 0 {
 		return nil, fmt.Errorf("no valid words found in the Excel file")
 	}
+
+	log.Info().Int("count", len(words)).Msg("Successfully read vocabulary words")
 
 	return &WordList{Words: words}, nil
 }
@@ -116,7 +128,7 @@ func (er *ExcelReader) GetFileInfo() (string, error) {
 
 	info := fmt.Sprintf("Excel file: %s\n", er.filePath)
 	info += fmt.Sprintf("Sheets: %d\n", len(xlFile.Sheets))
-	
+
 	for i, sheet := range xlFile.Sheets {
 		rowCount := 0
 		sheet.ForEachRow(func(row *xlsx.Row) error {

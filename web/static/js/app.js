@@ -200,90 +200,113 @@ function navigateToPage(pageNumber) {
 
 function loadPage(pageNumber, pageSize) {
     if (isLoading) return;
-    
+
     // Get page size from selector or use default
     if (!pageSize) {
         const pageSizeSelect = document.getElementById('pageSizeSelect');
-        pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+        const parsedPageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+        pageSize = isNaN(parsedPageSize) || parsedPageSize <= 0 ? 24 : parsedPageSize;
+    } else {
+        // Validate provided pageSize
+        pageSize = isNaN(pageSize) || pageSize <= 0 ? 24 : pageSize;
     }
-    
+
     fetch(`/api/words?page=${pageNumber}&pageSize=${pageSize}`)
         .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updatePageContent(data.data);
+        .then(response => {
+            if (response.success) {
+                updatePageContent(response.data);
+                updateNavigationState(response.data);
                 updatePageInfo();
                 scrollToTop();
             } else {
-                showError('Failed to load page: ' + data.error);
+                showError('Failed to load page: ' + response.error);
             }
         })
         .catch(error => {
+            console.error('Fetch error:', error);
             showError('Network error: ' + error.message);
         });
 }
 
 function updatePageContent(data) {
     const vocabularyGrid = document.getElementById('vocabularyGrid');
-    
+
     // Clear existing content
     vocabularyGrid.innerHTML = '';
-    
-    // Store original word order for this page
+
+    // Validate data structure
+    if (!data || !data.words || !Array.isArray(data.words)) {
+        console.error('Invalid data structure:', data);
+        showError('Invalid data received from server');
+        return;
+    }
+
+    // Store original word order for this page (API uses snake_case)
     originalWordOrder = data.words.map((word, index) => ({
         word: word,
-        displayNumber: data.startIndex + index
+        displayNumber: (data.start_index || 1) + index
     }));
-    
+
     // Add vocabulary cards
     data.words.forEach((word, index) => {
-        const card = createVocabularyCard(word, data.startIndex + index);
+        const card = createVocabularyCard(word, (data.start_index || 1) + index);
         vocabularyGrid.appendChild(card);
     });
     
     // Apply current visibility settings to new content
     applyVisibilitySettings();
-    
-    // Update navigation state
-    updateNavigationState(data);
 }
 
 function createVocabularyCard(word, displayNumber) {
+    // Validate word object
+    if (!word || typeof word !== 'object') {
+        console.error('Invalid word object:', word);
+        const card = document.createElement('div');
+        card.className = 'vocabulary-card error';
+        card.innerHTML = '<div class="error-message">Invalid word data</div>';
+        return card;
+    }
+
+    // Ensure required fields exist (API returns lowercase field names)
+    const english = word.english || '';
+    const chinese = word.chinese || '';
+
     const card = document.createElement('div');
     card.className = 'vocabulary-card';
-    card.setAttribute('data-word', word.English);
+    card.setAttribute('data-word', english);
     
     // Process Chinese translation
-    const chineseTranslation = processTranslation(word.Chinese);
-    
-    const isKnown = knownWords.has(word.English);
-    
+    const chineseTranslation = processTranslation(chinese);
+
+    const isKnown = knownWords.has(english);
+
     card.innerHTML = `
-        <button class="action-btn" onclick="toggleWordMenu(event, '${escapeJsString(word.English)}')" title="更多操作">
+        <button class="action-btn" onclick="toggleWordMenu(event, '${escapeJsString(english)}')" title="更多操作">
             <i class="fas fa-ellipsis-v"></i>
         </button>
         <div class="card-content">
             <div class="english-word">
-                ${escapeHtml(word.English)}
-                <button class="speaker-btn" onclick="speakWord('${escapeJsString(word.English)}', this)" title="播放发音">
+                ${escapeHtml(english)}
+                <button class="speaker-btn" onclick="speakWord('${escapeJsString(english)}', this)" title="播放发音">
                     <i class="fas fa-volume-up"></i>
                 </button>
             </div>
             <div class="chinese-meaning">
                 <span class="translation-text">${escapeHtml(chineseTranslation.display)}</span>
-                ${chineseTranslation.hasTooltip ? `<div class="translation-tooltip">${escapeHtml(word.Chinese)}</div>` : ''}
+                ${chineseTranslation.hasTooltip ? `<div class="translation-tooltip">${escapeHtml(chinese)}</div>` : ''}
             </div>
         </div>
-        <div class="word-menu" id="menu-${escapeJsString(word.English)}" style="display: none;">
-            <div class="menu-item known-action" data-word="${escapeJsString(word.English)}" data-action="known">
+        <div class="word-menu" id="menu-${escapeJsString(english)}" style="display: none;">
+            <div class="menu-item known-action" data-word="${escapeJsString(english)}" data-action="known">
                 <i class="fas fa-check"></i>
                 标为认识
             </div>
-            <div class="menu-item unknown-action" data-word="${escapeJsString(word.English)}" data-action="unknown" style="display: none;">
+            <div class="menu-item unknown-action" data-word="${escapeJsString(english)}" data-action="unknown" style="display: none;">
                 <i class="fas fa-times"></i>
                 标为不认识
             </div>
-            <div class="menu-item detail-action" data-word="${escapeJsString(word.English)}" data-action="detail">
+            <div class="menu-item detail-action" data-word="${escapeJsString(english)}" data-action="detail">
                 <i class="fas fa-search-plus"></i>
                 细品
             </div>
@@ -307,20 +330,40 @@ function createVocabularyCard(word, displayNumber) {
 }
 
 function updateNavigationState(data) {
-    currentPage = data.currentPage;
-    totalPages = data.totalPages;
-    
+
+    // Validate data structure
+    if (!data || typeof data !== 'object') {
+        console.error('Invalid navigation data:', data);
+        return;
+    }
+
+    // Safely extract values with defaults (API uses snake_case)
+    currentPage = data.current_page || 1;
+    totalPages = data.total_pages || 1;
+    const hasPrev = !!data.has_prev;
+    const hasNext = !!data.has_next;
+
     // Update buttons
-    document.getElementById('firstBtn').disabled = !data.hasPrev;
-    document.getElementById('prevBtn').disabled = !data.hasPrev;
-    document.getElementById('nextBtn').disabled = !data.hasNext;
-    document.getElementById('lastBtn').disabled = !data.hasNext;
-    
+    const firstBtn = document.getElementById('firstBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const lastBtn = document.getElementById('lastBtn');
+
+    if (firstBtn) firstBtn.disabled = !hasPrev;
+    if (prevBtn) prevBtn.disabled = !hasPrev;
+    if (nextBtn) nextBtn.disabled = !hasNext;
+    if (lastBtn) lastBtn.disabled = !hasNext;
+
     // Update page input
     const pageInput = document.getElementById('pageInput');
     if (pageInput) {
-        pageInput.value = currentPage;
-        pageInput.max = totalPages;
+        // Only set valid numeric values
+        if (currentPage && currentPage > 0) {
+            pageInput.value = currentPage;
+        }
+        if (totalPages && totalPages > 0) {
+            pageInput.max = totalPages;
+        }
     }
 }
 
@@ -328,8 +371,13 @@ function updatePageInfo() {
     // Page info display removed, only update page input
     const pageInput = document.getElementById('pageInput');
     if (pageInput) {
-        pageInput.value = currentPage;
-        pageInput.max = totalPages;
+        // Safely set values only if they are valid numbers
+        if (currentPage && currentPage > 0) {
+            pageInput.value = currentPage;
+        }
+        if (totalPages && totalPages > 0) {
+            pageInput.max = totalPages;
+        }
     }
 }
 
@@ -421,6 +469,7 @@ function escapeHtml(text) {
 }
 
 function escapeJsString(text) {
+    if (!text) return '';
     return text.replace(/['"\\]/g, '\\$&').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
@@ -842,8 +891,8 @@ function displayModalSearchResults(data, query) {
             const resultItem = document.createElement('div');
             resultItem.className = 'search-result-item';
             resultItem.innerHTML = `
-                <div class="search-result-word">${escapeHtml(word.English)}</div>
-                <div class="search-result-meaning">${escapeHtml(word.Chinese)}</div>
+                <div class="search-result-word">${escapeHtml(word.english)}</div>
+                <div class="search-result-meaning">${escapeHtml(word.chinese)}</div>
             `;
             resultItem.addEventListener('click', () => {
                 closeSearchModal();
@@ -1069,7 +1118,6 @@ function storeOriginalOrderFromTemplate() {
                 displayNumber: window.initialPageData ? window.initialPageData.startIndex + index : index + 1
             };
         });
-        console.log('Stored original word order from template:', originalWordOrder.length, 'words');
     }
 }
 
@@ -1603,12 +1651,7 @@ function restoreOriginalOrder() {
     const vocabularyGrid = document.getElementById('vocabularyGrid');
     const cards = Array.from(vocabularyGrid.children);
     
-    console.log('Restore function called:');
-    console.log('- Current cards:', cards.length);
-    console.log('- Original order length:', originalWordOrder.length);
-    
     if (cards.length <= 1 || originalWordOrder.length === 0) {
-        console.log('Restore aborted: not enough cards or no original order');
         return; // No need to restore if there's only one card or no original order
     }
     
