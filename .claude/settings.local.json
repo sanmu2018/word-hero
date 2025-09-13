@@ -17,7 +17,11 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Read(//c/code/1.aistudio/apworkshop-bff/**)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(./build/word-hero.exe)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
