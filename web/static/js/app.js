@@ -106,9 +106,10 @@ function setupEventListeners() {
     // Accent selection
     const accentUS = document.getElementById('accentUS');
     const accentUK = document.getElementById('accentUK');
-    accentUS.addEventListener('click', () => selectAccent('us'));
-    accentUK.addEventListener('click', () => selectAccent('uk'));
-    
+
+    accentUS.addEventListener('click', () => selectAccent('us', true));
+    accentUK.addEventListener('click', () => selectAccent('uk', true));
+
     // Initialize accent selection to UK (without notification)
     selectAccent('uk', false);
     
@@ -497,29 +498,39 @@ toastStyles.textContent = `
         right: 20px;
         background: #dc3545;
         color: white;
-        padding: 12px 20px;
+        padding: 15px 25px;
         border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         z-index: 3000;
         opacity: 0;
         transform: translateX(100%);
         transition: all 0.3s ease;
+        font-size: 16px;
+        font-weight: 500;
+        min-width: 250px;
     }
-    
+
     .toast.show {
         opacity: 1;
         transform: translateX(0);
     }
-    
+
     .toast.error {
         background: #dc3545;
     }
-    
+
     .toast.success {
         background: #28a745;
+        animation: successPulse 0.6s ease-in-out;
+    }
+
+    @keyframes successPulse {
+        0% { transform: translateX(0) scale(1); }
+        50% { transform: translateX(0) scale(1.05); }
+        100% { transform: translateX(0) scale(1); }
     }
 `;
 document.head.appendChild(toastStyles);
@@ -874,11 +885,11 @@ function resetSearchResults() {
 // Accent selection function
 function selectAccent(accent, showNotification = true) {
     selectedAccent = accent;
-    
+
     // Update button states
     const accentUS = document.getElementById('accentUS');
     const accentUK = document.getElementById('accentUK');
-    
+
     if (accent === 'us') {
         accentUS.classList.add('active');
         accentUK.classList.remove('active');
@@ -886,7 +897,7 @@ function selectAccent(accent, showNotification = true) {
         accentUS.classList.remove('active');
         accentUK.classList.add('active');
     }
-    
+
     // Show feedback only if requested
     if (showNotification) {
         const accentName = accent === 'us' ? '美式英语' : '英式英语';
@@ -953,30 +964,41 @@ function resetButtonState(button) {
 function speakWordBrowser(word, button) {
     // Cancel any existing speech first
     window.speechSynthesis.cancel();
-    
+
     // Small delay to ensure cancellation
     setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(word);
-        
+
         // Configure speech settings
         utterance.rate = 0.8;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
         utterance.lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
-        
+
         // Get voices and try to find a good one
         const voices = window.speechSynthesis.getVoices();
         let selectedVoice = null;
-        
+
         // Try to find a voice matching the selected accent
         for (const voice of voices) {
-            const lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
-            if (voice.lang === lang || voice.lang.startsWith('en')) {
+            const targetLang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+            if (voice.lang === targetLang) {
                 selectedVoice = voice;
                 break;
             }
         }
-        
+
+        // If no exact match, try partial match
+        if (!selectedVoice) {
+            for (const voice of voices) {
+                const targetLang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+                if (voice.lang.startsWith(targetLang.split('-')[0])) {
+                    selectedVoice = voice;
+                    break;
+                }
+            }
+        }
+
         if (selectedVoice) {
             utterance.voice = selectedVoice;
         }
