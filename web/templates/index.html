@@ -76,25 +76,11 @@
         <!-- Vocabulary Cards -->
         <div class="vocabulary-container">
             <div class="vocabulary-grid" id="vocabularyGrid">
-                {{range .Words}}
-                <div class="vocabulary-card" data-word="{{.English}}">
-                    <button class="action-btn" onclick="toggleWordMenu(event, '{{.English}}')" title="更多操作">
-                        <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div class="card-content">
-                        <div class="english-word">
-                            {{.English}}
-                            <button class="speaker-btn" onclick="speakWord('{{.English}}', this)" title="播放发音">
-                                <i class="fas fa-volume-up"></i>
-                            </button>
-                        </div>
-                        <div class="chinese-meaning">
-                            <span class="translation-text">{{.Chinese}}</span>
-                            <div class="translation-tooltip">{{.Chinese}}</div>
-                        </div>
-                    </div>
+                <!-- Cards will be dynamically loaded via API -->
+                <div class="loading-placeholder">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>正在加载词汇...</span>
                 </div>
-                {{end}}
             </div>
         </div>
 

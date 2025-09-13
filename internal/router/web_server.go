@@ -54,9 +54,9 @@ type PageData struct {
 
 // APIResponse represents the JSON response for API calls
 type APIResponse struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+	Code int         `json:"code"`
+	Data interface{} `json:"data,omitempty"`
+	Msg  string      `json:"msg,omitempty"`
 }
 
 // Start starts the web server
@@ -103,55 +103,23 @@ func (ws *WebServer) loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // homeHandler handles the main page
 func (ws *WebServer) homeHandler(templates *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get page number from query parameter
-		pageNum := 1
-		if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-			if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-				pageNum = p
-			}
-		}
-
-		// Get page size from query parameter
-		pageSize := 24 // Default page size
-		if pageSizeStr := r.URL.Query().Get("pageSize"); pageSizeStr != "" {
-			if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 && ps <= 100 {
-				pageSize = ps
-			}
-		}
-
-		// Get page data using service layer
-		page, err := ws.vocabularyService.GetWordsByPage(pageNum, pageSize)
-		if err != nil {
-			log.Error(err).Int("page", pageNum).Int("pageSize", pageSize).Msg("Failed to get page data")
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Calculate indices
-		startIndex, endIndex, err := ws.pagerService.GetPageRange(pageNum)
-		if err != nil {
-			log.Error(err).Msg("Failed to get page range")
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Prepare template data
+		// Prepare minimal template data - no word data
 		data := PageData{
-			Words:       page.Words,
-			CurrentPage: page.Number,
-			TotalPages:  page.TotalPages,
+			Words:       []dao.Word{}, // Empty array for initial load
+			CurrentPage: 1,
+			TotalPages:  ws.pagerService.GetTotalPages(),
 			TotalWords:  ws.pagerService.GetWordCount(),
-			PageSize:    page.PageSize,
-			HasPrev:     ws.pagerService.HasPreviousPage(pageNum),
-			HasNext:     ws.pagerService.HasNextPage(pageNum),
-			PrevPage:    pageNum - 1,
-			NextPage:    pageNum + 1,
-			StartIndex:  startIndex,
-			EndIndex:    endIndex,
+			PageSize:    ws.pagerService.GetPageSize(),
+			HasPrev:     false,
+			HasNext:     ws.pagerService.HasNextPage(1),
+			PrevPage:    1,
+			NextPage:    2,
+			StartIndex:  1,
+			EndIndex:    ws.pagerService.GetPageSize(),
 		}
 
-		// Render template
-		err = templates.ExecuteTemplate(w, "index.html", data)
+		// Render template without word data
+		err := templates.ExecuteTemplate(w, "index.html", data)
 		if err != nil {
 			log.Error(err).Msg("Failed to execute template")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -186,8 +154,8 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err).Int("page", page).Msg("Failed to get page data for API")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   err.Error(),
+			Code: 150321309,
+			Msg:  err.Error(),
 		})
 		return
 	}
@@ -197,8 +165,8 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err).Int("pageSize", pageSize).Msg("Failed to update page size")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   err.Error(),
+			Code: 150321309,
+			Msg:  err.Error(),
 		})
 		return
 	}
@@ -207,13 +175,16 @@ func (ws *WebServer) apiWordsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err).Int("page", page).Msg("Failed to get updated page data")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   err.Error(),
+			Code: 150321309,
+			Msg:  err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(responseData)
+	json.NewEncoder(w).Encode(APIResponse{
+		Code: 0,
+		Data: responseData,
+	})
 }
 
 // apiPageHandler handles API requests for specific pages
@@ -224,8 +195,8 @@ func (ws *WebServer) apiPageHandler(w http.ResponseWriter, r *http.Request) {
 	pathParts := strings.Split(r.URL.Path, "/")
 	if len(pathParts) < 3 {
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   "Invalid page number",
+			Code: 150321309,
+			Msg:  "Invalid page number",
 		})
 		return
 	}
@@ -233,8 +204,8 @@ func (ws *WebServer) apiPageHandler(w http.ResponseWriter, r *http.Request) {
 	pageNum, err := strconv.Atoi(pathParts[2])
 	if err != nil || pageNum < 1 {
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   "Invalid page number",
+			Code: 150321309,
+			Msg:  "Invalid page number",
 		})
 		return
 	}
@@ -244,13 +215,16 @@ func (ws *WebServer) apiPageHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err).Int("page", pageNum).Msg("Failed to get page data for API")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   err.Error(),
+			Code: 150321309,
+			Msg:  err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(responseData)
+	json.NewEncoder(w).Encode(APIResponse{
+		Code: 0,
+		Data: responseData,
+	})
 }
 
 // apiSearchHandler handles search requests using service layer
@@ -261,8 +235,8 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 	if query == "" {
 		log.Warn().Msg("Search query is empty")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   "Search query is required",
+			Code: 150321309,
+			Msg:  "Search query is required",
 		})
 		return
 	}
@@ -274,24 +248,22 @@ func (ws *WebServer) apiSearchHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err).Str("query", query).Msg("Search failed")
 		json.NewEncoder(w).Encode(APIResponse{
-			Success: false,
-			Error:   err.Error(),
+			Code: 150321309,
+			Msg:  err.Error(),
 		})
 		return
 	}
 
 	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
 
-	response := APIResponse{
-		Success: true,
+	json.NewEncoder(w).Encode(APIResponse{
+		Code: 0,
 		Data: map[string]interface{}{
 			"query":   query,
 			"results": results,
 			"count":   len(results),
 		},
-	}
-
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
 // apiStatsHandler handles statistics requests using service layer
@@ -305,10 +277,8 @@ func (ws *WebServer) apiStatsHandler(w http.ResponseWriter, r *http.Request) {
 	stats["totalPages"] = ws.pagerService.GetTotalPages()
 	stats["pageSize"] = ws.pagerService.GetPageSize()
 
-	response := APIResponse{
-		Success: true,
-		Data:    stats,
-	}
-
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(APIResponse{
+		Code: 0,
+		Data: stats,
+	})
 }

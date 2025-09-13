@@ -1,0 +1,291 @@
+openapi: 3.0.0
+info:
+  title: Word Hero API
+  description: 雅思词汇学习应用的 RESTful API 接口文档
+  version: 1.0.0
+  contact:
+    name: Word Hero Team
+    url: https://github.com/sanmu2018/word-hero
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: 开发服务器
+  - url: https://api.word-hero.com
+    description: 生产服务器
+
+paths:
+  /api/words:
+    get:
+      tags:
+        - 词汇管理
+      summary: 获取分页词汇列表
+      description: 获取指定页码的词汇数据，支持自定义每页显示数量
+      parameters:
+        - name: page
+          in: query
+          description: 页码，从1开始
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 每页显示数量，最大100
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 24
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PageData'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/page/{pageNumber}:
+    get:
+      tags:
+        - 词汇管理
+      summary: 获取指定页面词汇
+      description: 根据URL路径中的页码获取指定页面的词汇数据
+      parameters:
+        - name: pageNumber
+          in: path
+          description: 页码，从1开始
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PageData'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/search:
+    get:
+      tags:
+        - 搜索功能
+      summary: 词汇搜索
+      description: 根据关键词搜索词汇，支持英文和中文搜索
+      parameters:
+        - name: q
+          in: query
+          description: 搜索关键词，至少2个字符
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SearchResult'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/stats:
+    get:
+      tags:
+        - 系统信息
+      summary: 获取应用统计信息
+      description: 获取应用的统计信息，包括词汇总数、分页信息等
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppStats'
+
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 请求是否成功
+        data:
+          type: object
+          description: 响应数据
+        error:
+          type: string
+          description: 错误信息
+      required:
+        - success
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              enum: [false]
+            error:
+              type: string
+              description: 错误信息
+
+    Word:
+      type: object
+      properties:
+        english:
+          type: string
+          description: 英文单词
+          example: "abandon"
+        chinese:
+          type: string
+          description: 中文释义
+          example: "放弃，抛弃"
+      required:
+        - english
+        - chinese
+
+    PageData:
+      type: object
+      properties:
+        words:
+          type: array
+          items:
+            $ref: '#/components/schemas/Word'
+          description: 词汇数组
+        current_page:
+          type: integer
+          description: 当前页码
+          example: 1
+        total_pages:
+          type: integer
+          description: 总页数
+          example: 153
+        page_size:
+          type: integer
+          description: 每页显示数量
+          example: 24
+        total_words:
+          type: integer
+          description: 总词汇数
+          example: 3673
+        start_index:
+          type: integer
+          description: 当前页起始序号
+          example: 1
+        end_index:
+          type: integer
+          description: 当前页结束序号
+          example: 24
+        has_prev:
+          type: boolean
+          description: 是否有上一页
+          example: false
+        has_next:
+          type: boolean
+          description: 是否有下一页
+          example: true
+      required:
+        - words
+        - current_page
+        - total_pages
+        - page_size
+        - total_words
+        - start_index
+        - end_index
+        - has_prev
+        - has_next
+
+    SearchResult:
+      type: object
+      properties:
+        query:
+          type: string
+          description: 搜索关键词
+          example: "abandon"
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Word'
+          description: 匹配的词汇数组
+        count:
+          type: integer
+          description: 匹配结果数量
+          example: 1
+      required:
+        - query
+        - results
+        - count
+
+    AppStats:
+      type: object
+      properties:
+        total_words:
+          type: integer
+          description: 词汇总数
+          example: 3673
+        file_source:
+          type: string
+          description: 数据源文件路径
+          example: "words/IELTS.xlsx"
+        totalPages:
+          type: integer
+          description: 总页数
+          example: 153
+        pageSize:
+          type: integer
+          description: 当前每页显示数量
+          example: 24
+      required:
+        - total_words
+        - file_source
+
+tags:
+  - name: 词汇管理
+    description: 词汇数据的获取和管理
+  - name: 搜索功能
+    description: 词汇搜索和查询
+  - name: 系统信息
+    description: 应用统计和系统信息

@@ -377,3 +377,11 @@ netstat -tlnp | grep :8080
 - **Manual Building**: Use Go commands directly for building and testing
 - **Version Management**: Maintain version information in configuration and build process
 - **Dependency Management**: Keep Go modules updated and secure
+
+### API Development Standards
+- **API Specifications**: Follow the interface specifications documented in `api/api.md` for all API development
+- **Response Format**: Use the standardized `{code, data, msg}` response format for all API endpoints
+- **Error Handling**: Implement consistent error codes (0 for success, 150321309 for general errors)
+- **Pagination Format**: For paginated endpoints, use `{items: [], total: 1234}` format and let frontend calculate pagination
+- **Documentation**: Keep API documentation updated when making changes to endpoints or response formats
+- **Testing**: Verify all API endpoints comply with the documented specifications before deployment

@@ -69,22 +69,9 @@ func (ps *PagerService) GetPageData(pageNumber int) (map[string]interface{}, err
 		return nil, err
 	}
 
-	startIndex := (pageNumber - 1) * ps.pageSize + 1
-	endIndex := startIndex + len(page.Words) - 1
-
 	data := map[string]interface{}{
-		"success":      true,
-		"data": map[string]interface{}{
-			"words":        page.Words,
-			"current_page": page.Number,
-			"total_pages":  page.TotalPages,
-			"page_size":    page.PageSize,
-			"total_words":  ps.GetWordCount(),
-			"start_index":  startIndex,
-			"end_index":    endIndex,
-			"has_prev":     ps.HasPreviousPage(pageNumber),
-			"has_next":     ps.HasNextPage(pageNumber),
-		},
+		"items": page.Words,
+		"total": ps.GetWordCount(),
 	}
 
 	return data, nil

@@ -27,42 +27,36 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
-    // Get current page from URL or initial data
+    // Get current page from URL or default to 1
     const urlParams = new URLSearchParams(window.location.search);
     currentPage = parseInt(urlParams.get('page')) || 1;
-    
+
     // Initialize from template data if available
     if (window.initialPageData) {
         currentPage = window.initialPageData.currentPage;
         totalPages = window.initialPageData.totalPages;
-        
+
         // Set page size selector
         const pageSizeSelect = document.getElementById('pageSizeSelect');
         if (pageSizeSelect && window.initialPageData.pageSize) {
             pageSizeSelect.value = window.initialPageData.pageSize;
         }
     }
-    
+
     // Set up event listeners
     setupEventListeners();
-    
-    // Add click events to initial template cards
-    setupTemplateCardEvents();
-    
+
     // Load known words from localStorage
     loadKnownWords();
-    
-    // Apply known word states to template cards
-    applyKnownWordStates();
-    
+
     // Load word timestamps
     loadWordTimestamps();
-    
-    // Store original word order for template-rendered cards
-    storeOriginalOrderFromTemplate();
-    
+
     // Update page info display
     updatePageInfo();
+
+    // Load initial page data via API call
+    loadPage(currentPage);
 }
 
 function setupEventListeners() {
@@ -214,13 +208,13 @@ function loadPage(pageNumber, pageSize) {
     fetch(`/api/words?page=${pageNumber}&pageSize=${pageSize}`)
         .then(response => response.json())
         .then(response => {
-            if (response.success) {
+            if (response.code === 0) {
                 updatePageContent(response.data);
                 updateNavigationState(response.data);
                 updatePageInfo();
                 scrollToTop();
             } else {
-                showError('Failed to load page: ' + response.error);
+                showError(response.msg);
             }
         })
         .catch(error => {
@@ -235,25 +229,30 @@ function updatePageContent(data) {
     // Clear existing content
     vocabularyGrid.innerHTML = '';
 
-    // Validate data structure
-    if (!data || !data.words || !Array.isArray(data.words)) {
+    // Validate data structure - new format has items array and total count
+    if (!data || !data.items || !Array.isArray(data.items) || typeof data.total !== 'number') {
         console.error('Invalid data structure:', data);
         showError('Invalid data received from server');
         return;
     }
 
-    // Store original word order for this page (API uses snake_case)
-    originalWordOrder = data.words.map((word, index) => ({
+    // Get page size to calculate display numbers
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+    const startIndex = (currentPage - 1) * pageSize + 1;
+
+    // Store original word order for this page
+    originalWordOrder = data.items.map((word, index) => ({
         word: word,
-        displayNumber: (data.start_index || 1) + index
+        displayNumber: startIndex + index
     }));
 
     // Add vocabulary cards
-    data.words.forEach((word, index) => {
-        const card = createVocabularyCard(word, (data.start_index || 1) + index);
+    data.items.forEach((word, index) => {
+        const card = createVocabularyCard(word, startIndex + index);
         vocabularyGrid.appendChild(card);
     });
-    
+
     // Apply current visibility settings to new content
     applyVisibilitySettings();
 }
@@ -330,18 +329,26 @@ function createVocabularyCard(word, displayNumber) {
 }
 
 function updateNavigationState(data) {
-
     // Validate data structure
-    if (!data || typeof data !== 'object') {
+    if (!data || typeof data !== 'object' || typeof data.total !== 'number') {
         console.error('Invalid navigation data:', data);
         return;
     }
 
-    // Safely extract values with defaults (API uses snake_case)
-    currentPage = data.current_page || 1;
-    totalPages = data.total_pages || 1;
-    const hasPrev = !!data.has_prev;
-    const hasNext = !!data.has_next;
+    // Get page size to calculate total pages
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+
+    // Calculate total pages from total count
+    totalPages = Math.ceil(data.total / pageSize);
+
+    // Ensure currentPage is valid
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    // Calculate navigation states
+    const hasPrev = currentPage > 1;
+    const hasNext = currentPage < totalPages;
 
     // Update buttons
     const firstBtn = document.getElementById('firstBtn');
@@ -387,11 +394,11 @@ function showStats() {
     fetch('/api/stats')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
+            if (data.code === 0) {
                 displayStats(data.data);
                 showModal('statsModal');
             } else {
-                showError('Failed to load stats: ' + data.error);
+                showError(data.msg);
             }
         })
         .catch(error => {
@@ -861,10 +868,10 @@ function performModalSearch(query) {
     fetch(`/api/search?q=${encodeURIComponent(query)}`)
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
+            if (data.code === 0) {
                 displayModalSearchResults(data.data, query);
             } else {
-                showSearchError('搜索失败: ' + data.error);
+                showSearchError(data.msg);
             }
         })
         .catch(error => {
