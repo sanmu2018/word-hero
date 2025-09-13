@@ -35,3 +35,6 @@ go.work.sum
 
 # Windows system files
 nul
+
+# Environment configuration file (local system tracking)
+.tmp.md
