@@ -198,11 +198,11 @@ function loadPage(pageNumber, pageSize) {
     // Get page size from selector or use default
     if (!pageSize) {
         const pageSizeSelect = document.getElementById('pageSizeSelect');
-        const parsedPageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
-        pageSize = isNaN(parsedPageSize) || parsedPageSize <= 0 ? 24 : parsedPageSize;
+        const parsedPageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 12;
+        pageSize = isNaN(parsedPageSize) || parsedPageSize <= 0 ? 12 : parsedPageSize;
     } else {
         // Validate provided pageSize
-        pageSize = isNaN(pageSize) || pageSize <= 0 ? 24 : pageSize;
+        pageSize = isNaN(pageSize) || pageSize <= 0 ? 12 : pageSize;
     }
 
     fetch(`/api/words?page=${pageNumber}&pageSize=${pageSize}`)
@@ -1695,10 +1695,286 @@ function showRestoreFeedback() {
     // Show feedback
     restoreBtn.innerHTML = '<i class="fas fa-check"></i> 已恢复';
     restoreBtn.style.background = '#28a745';
-    
+
     // Reset after 1 second
     setTimeout(() => {
         restoreBtn.innerHTML = originalHTML;
         restoreBtn.style.background = '';
     }, 1000);
 }
+
+// Authentication functionality
+class AuthManager {
+    constructor() {
+        this.token = localStorage.getItem('authToken') || null;
+        this.user = JSON.parse(localStorage.getItem('currentUser')) || null;
+        this.init();
+    }
+
+    init() {
+        this.updateAuthUI();
+        this.bindAuthEvents();
+        this.checkAuthStatus();
+    }
+
+    bindAuthEvents() {
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.login();
+        });
+
+        // Register form submission
+        document.getElementById('registerForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.register();
+        });
+
+        // Profile form submission
+        document.getElementById('profileForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.updateProfile();
+        });
+
+        // Change password form submission
+        document.getElementById('changePasswordForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.changePassword();
+        });
+    }
+
+    async login() {
+        const username = document.getElementById('loginUsername').value;
+        const password = document.getElementById('loginPassword').value;
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0) {
+                this.token = result.data.token;
+                this.user = result.data.user;
+                localStorage.setItem('authToken', this.token);
+                localStorage.setItem('currentUser', JSON.stringify(this.user));
+                this.updateAuthUI();
+                this.showNotification('登录成功！', 'success');
+                closeModal('loginModal');
+            } else {
+                this.showNotification(result.msg || '登录失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('网络错误，请重试', 'error');
+        }
+    }
+
+    async register() {
+        const formData = {
+            username: document.getElementById('registerUsername').value,
+            email: document.getElementById('registerEmail').value,
+            full_name: document.getElementById('registerFullName').value,
+            password: document.getElementById('registerPassword').value,
+            confirm_password: document.getElementById('registerConfirmPassword').value
+        };
+
+        if (formData.password !== formData.confirm_password) {
+            this.showNotification('两次输入的密码不一致', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0) {
+                this.token = result.data.token;
+                this.user = result.data.user;
+                localStorage.setItem('authToken', this.token);
+                localStorage.setItem('currentUser', JSON.stringify(this.user));
+                this.updateAuthUI();
+                this.showNotification('注册成功！', 'success');
+                closeModal('registerModal');
+            } else {
+                this.showNotification(result.msg || '注册失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('网络错误，请重试', 'error');
+        }
+    }
+
+    async updateProfile() {
+        const formData = {
+            full_name: document.getElementById('profileFullName').value,
+            bio: document.getElementById('profileBio').value
+        };
+
+        try {
+            const response = await fetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0) {
+                this.user = result.data;
+                localStorage.setItem('currentUser', JSON.stringify(this.user));
+                this.updateAuthUI();
+                this.showNotification('个人资料更新成功！', 'success');
+                closeModal('profileModal');
+            } else {
+                this.showNotification(result.msg || '更新失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('网络错误，请重试', 'error');
+        }
+    }
+
+    async changePassword() {
+        const formData = {
+            current_password: document.getElementById('currentPassword').value,
+            new_password: document.getElementById('newPassword').value,
+            confirm_new_password: document.getElementById('confirmNewPassword').value
+        };
+
+        if (formData.new_password !== formData.confirm_new_password) {
+            this.showNotification('两次输入的新密码不一致', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0) {
+                this.showNotification('密码修改成功！', 'success');
+                closeModal('changePasswordModal');
+                document.getElementById('changePasswordForm').reset();
+            } else {
+                this.showNotification(result.msg || '密码修改失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('网络错误，请重试', 'error');
+        }
+    }
+
+    logout() {
+        this.token = null;
+        this.user = null;
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        this.updateAuthUI();
+        this.showNotification('已退出登录', 'info');
+    }
+
+    updateAuthUI() {
+        const loginSection = document.getElementById('loginSection');
+        const userSection = document.getElementById('userSection');
+        const userDisplay = document.getElementById('userDisplay');
+
+        if (this.user) {
+            loginSection.style.display = 'none';
+            userSection.style.display = 'flex';
+            userDisplay.textContent = this.user.full_name || this.user.username;
+        } else {
+            loginSection.style.display = 'flex';
+            userSection.style.display = 'none';
+        }
+    }
+
+    async checkAuthStatus() {
+        if (!this.token) return;
+
+        try {
+            const response = await fetch('/api/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.code === 0) {
+                    this.user = result.data;
+                    localStorage.setItem('currentUser', JSON.stringify(this.user));
+                    this.updateAuthUI();
+                } else {
+                    // Token is invalid, clear it
+                    this.logout();
+                }
+            } else {
+                this.logout();
+            }
+        } catch (error) {
+            this.logout();
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+}
+
+// Global authentication functions
+function showLoginModal() {
+    showModal('loginModal');
+}
+
+function showRegisterModal() {
+    showModal('registerModal');
+}
+
+function showProfileModal() {
+    if (authManager.user) {
+        document.getElementById('profileUsername').value = authManager.user.username;
+        document.getElementById('profileEmail').value = authManager.user.email;
+        document.getElementById('profileFullName').value = authManager.user.full_name || '';
+        document.getElementById('profileBio').value = authManager.user.bio || '';
+        showModal('profileModal');
+    }
+}
+
+function showChangePasswordModal() {
+    showModal('changePasswordModal');
+}
+
+function logout() {
+    if (confirm('确定要退出登录吗？')) {
+        authManager.logout();
+    }
+}
+
+// Initialize authentication manager
+const authManager = new AuthManager();

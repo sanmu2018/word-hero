@@ -11,8 +11,10 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	App    AppConfig    `yaml:"app"`
+	Server   ServerConfig   `yaml:"server"`
+	App      AppConfig      `yaml:"app"`
+	Database DatabaseConfig `yaml:"database"`
+	JWT      JWTConfig      `yaml:"jwt"`
 }
 
 // ServerConfig represents server configuration
@@ -28,6 +30,25 @@ type AppConfig struct {
 	StaticDir string `yaml:"static_dir"`
 }
 
+// DatabaseConfig represents database configuration
+type DatabaseConfig struct {
+	Host            string `yaml:"host"`
+	Port            int    `yaml:"port"`
+	User            string `yaml:"user"`
+	Password        string `yaml:"password"`
+	DBName          string `yaml:"dbname"`
+	SSLMode         string `yaml:"ssl_mode"`
+	MaxIdleConns    int    `yaml:"max_idle_conns"`
+	MaxOpenConns    int    `yaml:"max_open_conns"`
+	ConnMaxLifetime int    `yaml:"conn_max_lifetime"`
+}
+
+// JWTConfig represents JWT configuration
+type JWTConfig struct {
+	Secret    string `yaml:"secret"`
+	ExpiresIn string `yaml:"expires_in"`
+}
+
 // LoadConfig loads configuration from file
 func LoadConfig() (*Config, error) {
 	// Default configuration
@@ -38,8 +59,23 @@ func LoadConfig() (*Config, error) {
 		},
 		App: AppConfig{
 			ExcelFile: "configs/words/IELTS.xlsx",
-			PageSize:  24,
+			PageSize:  12,
 			StaticDir: "web/static",
+		},
+		Database: DatabaseConfig{
+			Host:            "localhost",
+			Port:            5432,
+			User:            "postgres",
+			Password:        "postgres",
+			DBName:          "word_hero",
+			SSLMode:         "disable",
+			MaxIdleConns:    10,
+			MaxOpenConns:    100,
+			ConnMaxLifetime: 3600,
+		},
+		JWT: JWTConfig{
+			Secret:    "your-secret-key-change-in-production",
+			ExpiresIn: "24h",
 		},
 	}
 

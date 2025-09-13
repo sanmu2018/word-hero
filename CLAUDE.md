@@ -173,6 +173,44 @@ word-hero/
 
 ## Development Standards
 
+### Database Standards
+
+#### Table Creation Standards
+1. **Primary Key Standards**: All primary keys cannot use auto-increment IDs. Use UUID or snowflake algorithm to generate unique IDs:
+   ```go
+   type User struct {
+       ID string `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+   }
+   ```
+
+2. **Timestamp Standards**: All time fields should be saved in timestamp format with millisecond precision:
+   ```go
+   type User struct {
+       CreatedAt int64 `gorm:"autoCreateTime:milli" json:"createdAt"`
+       UpdatedAt int64 `gorm:"autoUpdateTime:milli" json:"updatedAt"`
+   }
+   ```
+
+3. **ID Generation**: Use the provided utilities for consistent ID generation:
+   - UUID: `utils.GenerateUUID()`
+   - Snowflake: `utils.GenerateSnowflakeID()`
+
+4. **Database Migration**: All database migrations must include PostgreSQL UUID extension support:
+   ```go
+   // Enable UUID extension for PostgreSQL
+   if err := DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
+       return fmt.Errorf("failed to create UUID extension: %w", err)
+   }
+   ```
+
+5. **Model Organization**: All data models must be placed in the `internal/models` package with appropriate GORM tags and JSON serialization support.
+
+#### PostgreSQL Configuration
+- Default UUID extension: `uuid-ossp`
+- UUID generation: `uuid_generate_v4()`
+- Automatic timestamp management with GORM hooks
+- Proper indexing for UUID primary keys
+
 ### Go Project Structure Standards
 
 #### Directory Organization
@@ -197,6 +235,14 @@ word-hero/
 - **Package Organization**: Each `.go` file should focus on a single responsibility
 - **Function Length**: Keep functions concise and focused on a single task
 - **Exported Functions**: All exported functions must have Go-style comments explaining purpose, parameters, and return values
+
+#### Struct Organization Standards
+- **Data Access Layer (internal/dao/)**: Contains only data access operations and database interactions
+- **Business Logic Layer (internal/models/)**: Contains business logic methods that wrap data structures with domain-specific operations
+- **Data Transfer Objects (internal/dto/)**: Contains all API request and response structures, including input validation and output formatting
+- **Database Table Structures (internal/table/)**: Contains database entity definitions with GORM tags and persistence-related methods
+- **API Interface Standards**: All future API interface input and return parameter struct definitions must be placed in the `internal/dto/` package
+- **Separation of Concerns**: Database table structs, business logic, and API communication structures must be kept in separate packages to maintain clear boundaries between layers
 
 #### Architecture Guidelines
 - **Layered Architecture**: Follow the established layer pattern (router → service → dao)

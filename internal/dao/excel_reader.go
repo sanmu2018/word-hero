@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/tealeg/xlsx/v3"
+	"github.com/sanmu2018/word-hero/internal/dto"
+	"github.com/sanmu2018/word-hero/internal/table"
+	"github.com/sanmu2018/word-hero/internal/utils"
 	"github.com/sanmu2018/word-hero/log"
 )
 
@@ -27,7 +31,7 @@ func (er *ExcelReader) GetFilePath() string {
 }
 
 // ReadWords reads words from Excel file
-func (er *ExcelReader) ReadWords() (*WordList, error) {
+func (er *ExcelReader) ReadWords() (*dto.VocabularyList, error) {
 	log.Info().Str("file", er.filePath).Msg("Reading Excel file")
 
 	// Open the Excel file
@@ -36,7 +40,7 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 		return nil, fmt.Errorf("failed to open Excel file: %v", err)
 	}
 
-	var words []Word
+	var words []table.Word
 
 	// Iterate through all sheets
 	for _, sheet := range xlFile.Sheets {
@@ -75,10 +79,14 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 				chinese = trimString(chinese)
 
 				if english != "" && chinese != "" {
-					words = append(words, Word{
-						English: english,
-						Chinese: chinese,
-					})
+					word := table.Word{
+						ID:        utils.GenerateUUID(),
+						English:   english,
+						Chinese:   chinese,
+						CreatedAt: time.Now().UnixMilli(),
+						UpdatedAt: time.Now().UnixMilli(),
+					}
+					words = append(words, word)
 				}
 			}
 			return nil
@@ -95,7 +103,7 @@ func (er *ExcelReader) ReadWords() (*WordList, error) {
 
 	log.Info().Int("count", len(words)).Msg("Successfully read vocabulary words")
 
-	return &WordList{Words: words}, nil
+	return &dto.VocabularyList{Words: words}, nil
 }
 
 // trimString trims whitespace from a string

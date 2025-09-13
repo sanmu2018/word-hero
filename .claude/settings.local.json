@@ -21,7 +21,15 @@
       "Bash(go mod tidy:*)",
       "Bash(./build/word-hero.exe)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(timeout:*)",
+      "Bash(python3:*)",
+      "Bash(set:*)",
+      "Bash(./build/migrate.exe:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic:*)",
+      "Bash(powershell:*)",
+      "Bash(.buildword-hero.exe)"
     ],
     "deny": [],
     "ask": []
