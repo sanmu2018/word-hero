@@ -4,10 +4,11 @@ let totalPages = 1;
 let isLoading = false;
 let wordsVisible = true;
 let translationsVisible = true;
-let currentSpeech = null;
+// Speech synthesis is managed by the browser API directly
 let selectedCard = null;
 let selectedAccent = 'uk'; // Default to UK accent
 let knownWords = new Set(); // Track known words
+let originalWordOrder = []; // Store original word order for restore functionality
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -17,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.speechSynthesis.getVoices();
         // Listen for voices changed event
         window.speechSynthesis.onvoiceschanged = function() {
-            console.log('Speech synthesis voices loaded:', window.speechSynthesis.getVoices().length);
+            // Voices loaded
         };
     }
     
@@ -53,6 +54,9 @@ function initializeApp() {
     // Apply known word states to template cards
     applyKnownWordStates();
     
+    // Store original word order for template-rendered cards
+    storeOriginalOrderFromTemplate();
+    
     // Update page info display
     updatePageInfo();
 }
@@ -86,11 +90,13 @@ function setupEventListeners() {
     const toggleWordsBtn = document.getElementById('toggleWords');
     const toggleTranslationsBtn = document.getElementById('toggleTranslations');
     const shuffleBtn = document.getElementById('shuffleBtn');
+    const restoreBtn = document.getElementById('restoreBtn');
     const resetKnownWordsBtn = document.getElementById('resetKnownWords');
     
     toggleWordsBtn.addEventListener('click', toggleWordsVisibility);
     toggleTranslationsBtn.addEventListener('click', toggleTranslationsVisibility);
     shuffleBtn.addEventListener('click', shuffleCards);
+    restoreBtn.addEventListener('click', restoreOriginalOrder);
     resetKnownWordsBtn.addEventListener('click', resetKnownWords);
     
     // Accent selection
@@ -218,6 +224,12 @@ function updatePageContent(data) {
     // Clear existing content
     vocabularyGrid.innerHTML = '';
     
+    // Store original word order for this page
+    originalWordOrder = data.words.map((word, index) => ({
+        word: word,
+        displayNumber: data.startIndex + index
+    }));
+    
     // Add vocabulary cards
     data.words.forEach((word, index) => {
         const card = createVocabularyCard(word, data.startIndex + index);
@@ -242,13 +254,13 @@ function createVocabularyCard(word, displayNumber) {
     const isKnown = knownWords.has(word.English);
     
     card.innerHTML = `
-        <button class="action-btn" onclick="toggleWordMenu(event, '${escapeHtml(word.English)}')" title="更多操作">
+        <button class="action-btn" onclick="toggleWordMenu(event, '${escapeJsString(word.English)}')" title="更多操作">
             <i class="fas fa-ellipsis-v"></i>
         </button>
         <div class="card-content">
             <div class="english-word">
                 ${escapeHtml(word.English)}
-                <button class="speaker-btn" onclick="speakWord('${escapeHtml(word.English)}', this)" title="播放发音">
+                <button class="speaker-btn" onclick="speakWord('${escapeJsString(word.English)}', this)" title="播放发音">
                     <i class="fas fa-volume-up"></i>
                 </button>
             </div>
@@ -257,16 +269,16 @@ function createVocabularyCard(word, displayNumber) {
                 ${chineseTranslation.hasTooltip ? `<div class="translation-tooltip">${escapeHtml(word.Chinese)}</div>` : ''}
             </div>
         </div>
-        <div class="word-menu" id="menu-${escapeHtml(word.English)}" style="display: none;">
-            <div class="menu-item known-action" data-word="${escapeHtml(word.English)}" data-action="known">
+        <div class="word-menu" id="menu-${escapeJsString(word.English)}" style="display: none;">
+            <div class="menu-item known-action" data-word="${escapeJsString(word.English)}" data-action="known">
                 <i class="fas fa-check"></i>
                 标为认识
             </div>
-            <div class="menu-item unknown-action" data-word="${escapeHtml(word.English)}" data-action="unknown" style="display: none;">
+            <div class="menu-item unknown-action" data-word="${escapeJsString(word.English)}" data-action="unknown" style="display: none;">
                 <i class="fas fa-times"></i>
                 标为不认识
             </div>
-            <div class="menu-item detail-action" data-word="${escapeHtml(word.English)}" data-action="detail">
+            <div class="menu-item detail-action" data-word="${escapeJsString(word.English)}" data-action="detail">
                 <i class="fas fa-search-plus"></i>
                 细品
             </div>
@@ -401,6 +413,10 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function escapeJsString(text) {
+    return text.replace(/['"\\]/g, '\\$&').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 function debounce(func, wait) {
@@ -886,118 +902,115 @@ function selectCard(card) {
     selectedCard = card;
 }
 
-// Text-to-speech function
+// Text-to-speech function using browser speech synthesis
 function speakWord(word, button) {
-    // Check if currently speaking this word
-    if (currentSpeech && !currentSpeech.ended) {
+    // Toggle speaking state
+    if (button.classList.contains('speaking')) {
         // Stop speaking
-        window.speechSynthesis.cancel();
-        currentSpeech = null;
-        updateSpeakerButton(button, false);
+        stopSpeech(button);
         return;
     }
     
-    // Stop any other current speech
-    if (currentSpeech) {
-        window.speechSynthesis.cancel();
-        currentSpeech = null;
+    // Check if browser supports speech synthesis
+    if (!('speechSynthesis' in window)) {
+        showError('您的浏览器不支持语音播放功能');
+        return;
     }
     
-    // Check if browser supports speech synthesis
+    // Show speaking state
+    button.classList.add('speaking');
+    button.innerHTML = '<i class="fas fa-stop"></i>';
+    button.title = '停止播放';
+    
+    // Speak the word
+    speakWordBrowser(word, button);
+}
+
+// Stop speech synthesis
+function stopSpeech(button) {
     if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        
+        // Small delay to ensure cancellation is processed
+        setTimeout(() => {
+            resetButtonState(button);
+        }, 100);
+    }
+}
+
+// Reset button to normal state
+function resetButtonState(button) {
+    button.classList.remove('speaking');
+    button.innerHTML = '<i class="fas fa-volume-up"></i>';
+    button.title = '播放发音';
+}
+
+// Speak word using browser speech synthesis
+function speakWordBrowser(word, button) {
+    // Cancel any existing speech first
+    window.speechSynthesis.cancel();
+    
+    // Small delay to ensure cancellation
+    setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(word);
         
-        // Get available voices and try to find accent-specific voice
+        // Configure speech settings
+        utterance.rate = 0.8;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+        
+        // Get voices and try to find a good one
         const voices = window.speechSynthesis.getVoices();
-        let preferredVoice = null;
+        let selectedVoice = null;
         
-        // Define voice preferences based on selected accent
-        let voicePreferences;
-        if (selectedAccent === 'us') {
-            // US English preferences
-            voicePreferences = [
-                'Google US English',
-                'Microsoft David - English (United States)',
-                'Microsoft Zira - English (United States)',
-                'Samantha',
-                'Alex',
-                'en-US'
-            ];
-        } else {
-            // UK English preferences
-            voicePreferences = [
-                'Google UK English Female',
-                'Google UK English Male',
-                'Microsoft Hazel - English (United Kingdom)',
-                'Microsoft George - English (United Kingdom)',
-                'Daniel',
-                'Karen',
-                'Oliver',
-                'Serena',
-                'en-GB'
-            ];
-        }
-        
-        // Find the best available voice
-        for (const voiceName of voicePreferences) {
-            const voice = voices.find(v => v.name.includes(voiceName) || v.lang.includes(voiceName));
-            if (voice) {
-                preferredVoice = voice;
+        // Try to find a voice matching the selected accent
+        for (const voice of voices) {
+            const lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+            if (voice.lang === lang || voice.lang.startsWith('en')) {
+                selectedVoice = voice;
                 break;
             }
         }
         
-        // Configure speech settings for better pronunciation
-        utterance.voice = preferredVoice;
-        utterance.lang = preferredVoice ? preferredVoice.lang : 'en-US';
-        utterance.rate = 0.7;         // Optimal speed for language learning
-        utterance.pitch = 1.0;        // Normal pitch
-        utterance.volume = 1.0;       // Full volume
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+        }
         
-        // Store current speech
-        currentSpeech = utterance;
-        
-        // Handle speech events
-        utterance.onstart = function() {
-            // Update button to show speaking state
-            updateSpeakerButton(button, true);
-        };
-        
+        // Set up event handlers
         utterance.onend = function() {
-            currentSpeech = null;
-            // Reset button states
-            updateSpeakerButton(button, false);
+            resetButtonState(button);
         };
         
         utterance.onerror = function(event) {
-            // Don't log "interrupted" errors as they are normal when user stops playback
+            resetButtonState(button);
+            
+            // Only show error for non-interrupted errors
             if (event.error !== 'interrupted') {
-                console.error('Speech synthesis error:', event.error);
-                showError('语音播放失败，请检查浏览器设置');
+                showError('语音播放失败，请重试');
             }
-            currentSpeech = null;
-            updateSpeakerButton(button, false);
         };
         
-        // Speak the word
-        window.speechSynthesis.speak(utterance);
-    } else {
-        showError('您的浏览器不支持语音合成功能');
-    }
+        // Try to speak
+        try {
+            window.speechSynthesis.speak(utterance);
+            
+            // Backup timeout in case onend doesn't fire
+            setTimeout(() => {
+                if (button.classList.contains('speaking')) {
+                    resetButtonState(button);
+                }
+            }, 5000);
+            
+        } catch (error) {
+            resetButtonState(button);
+            showError('语音播放失败，请重试');
+        }
+    }, 100);
 }
 
-// Update single speaker button state
-function updateSpeakerButton(button, isSpeaking) {
-    if (isSpeaking) {
-        button.classList.add('speaking');
-        button.innerHTML = '<i class="fas fa-stop"></i>';
-        button.title = '停止播放';
-    } else {
-        button.classList.remove('speaking');
-        button.innerHTML = '<i class="fas fa-volume-up"></i>';
-        button.title = '播放发音';
-    }
-}
+
+
 
 // Setup click events for template-rendered cards
 function setupTemplateCardEvents() {
@@ -1013,6 +1026,25 @@ function setupTemplateCardEvents() {
             card.setAttribute('data-event-setup', 'true');
         }
     });
+}
+
+// Store original word order from template-rendered cards
+function storeOriginalOrderFromTemplate() {
+    const templateCards = document.querySelectorAll('.vocabulary-card');
+    if (templateCards.length > 0) {
+        originalWordOrder = Array.from(templateCards).map((card, index) => {
+            const englishWord = card.getAttribute('data-word');
+            const chineseText = card.querySelector('.translation-text').textContent;
+            return {
+                word: {
+                    English: englishWord,
+                    Chinese: chineseText
+                },
+                displayNumber: window.initialPageData ? window.initialPageData.startIndex + index : index + 1
+            };
+        });
+        console.log('Stored original word order from template:', originalWordOrder.length, 'words');
+    }
 }
 
 // Toast notification function
@@ -1130,20 +1162,76 @@ function updateWordCardAppearance(word, isKnown) {
 }
 
 function resetKnownWords() {
-    if (confirm('确定要重置所有单词的标记状态和顺序吗？这将清除所有已认识单词的记录并恢复原始顺序。')) {
-        // Clear the known words set
+    // Show reset options modal instead of confirmation dialog
+    showResetOptionsModal();
+}
+
+function showResetOptionsModal() {
+    const modal = document.getElementById('resetOptionsModal');
+    
+    // Update the modal with current page information
+    document.getElementById('currentPageNumber').textContent = currentPage;
+    document.getElementById('totalPagesNumber').textContent = totalPages;
+    document.getElementById('totalWordsNumber').textContent = window.initialPageData ? window.initialPageData.totalWords : '3673';
+    
+    modal.style.display = 'block';
+}
+
+function closeResetOptionsModal() {
+    const modal = document.getElementById('resetOptionsModal');
+    modal.style.display = 'none';
+}
+
+function resetCurrentPage() {
+    // Get current page words
+    const currentCards = document.querySelectorAll('.vocabulary-card');
+    let resetCount = 0;
+    
+    currentCards.forEach(card => {
+        const word = card.getAttribute('data-word');
+        if (word && knownWords.has(word)) {
+            knownWords.delete(word);
+            card.classList.remove('known-word');
+            resetCount++;
+        }
+    });
+    
+    // Save changes
+    saveKnownWords();
+    
+    // Close modal
+    closeResetOptionsModal();
+    
+    // Show feedback
+    showToast(`已重置当前页面的 ${resetCount} 个单词标记`, 'success');
+    
+    // Restore original order for current page
+    if (originalWordOrder.length > 0) {
+        restoreOriginalOrder();
+    }
+}
+
+function resetAllPages() {
+    // Confirm before resetting all pages
+    if (confirm('确定要重置所有页面的单词标记状态吗？这将清除所有已认识单词的记录。')) {
+        const totalKnown = knownWords.size;
+        
+        // Clear all known words
         knownWords.clear();
         
         // Save to localStorage
         saveKnownWords();
         
-        // Reload current page to restore original order
+        // Close modal
+        closeResetOptionsModal();
+        
+        // Reload current page to refresh display
         const pageSizeSelect = document.getElementById('pageSizeSelect');
         const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
         loadPage(currentPage, pageSize);
         
-        // Show success message
-        showToast('已重置所有单词标记和顺序', 'success');
+        // Show feedback
+        showToast(`已重置全部 ${totalKnown} 个已标记单词`, 'success');
     }
 }
 
@@ -1322,4 +1410,59 @@ function updateSpeakerButtons(isSpeaking) {
     speakerButtons.forEach(button => {
         updateSpeakerButton(button, isSpeaking);
     });
+}
+
+// Restore original order functionality
+function restoreOriginalOrder() {
+    const vocabularyGrid = document.getElementById('vocabularyGrid');
+    const cards = Array.from(vocabularyGrid.children);
+    
+    console.log('Restore function called:');
+    console.log('- Current cards:', cards.length);
+    console.log('- Original order length:', originalWordOrder.length);
+    
+    if (cards.length <= 1 || originalWordOrder.length === 0) {
+        console.log('Restore aborted: not enough cards or no original order');
+        return; // No need to restore if there's only one card or no original order
+    }
+    
+    // Add restore animation to all cards
+    cards.forEach(card => {
+        card.classList.add('restoring');
+    });
+    
+    // Clear current cards
+    vocabularyGrid.innerHTML = '';
+    
+    // Re-add cards in original order
+    originalWordOrder.forEach(item => {
+        const card = createVocabularyCard(item.word, item.displayNumber);
+        vocabularyGrid.appendChild(card);
+    });
+    
+    // Remove animation class after animation completes
+    setTimeout(() => {
+        const newCards = Array.from(vocabularyGrid.children);
+        newCards.forEach(card => {
+            card.classList.remove('restoring');
+        });
+    }, 500);
+    
+    // Show restore feedback
+    showRestoreFeedback();
+}
+
+function showRestoreFeedback() {
+    const restoreBtn = document.getElementById('restoreBtn');
+    const originalHTML = restoreBtn.innerHTML;
+    
+    // Show feedback
+    restoreBtn.innerHTML = '<i class="fas fa-check"></i> 已恢复';
+    restoreBtn.style.background = '#28a745';
+    
+    // Reset after 1 second
+    setTimeout(() => {
+        restoreBtn.innerHTML = originalHTML;
+        restoreBtn.style.background = '';
+    }, 1000);
 }

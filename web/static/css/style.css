@@ -480,6 +480,21 @@ body {
     transform: translateY(0);
 }
 
+.action-btn.restore-btn {
+    background: #6f42c1;
+    box-shadow: 0 2px 8px rgba(111, 66, 193, 0.2);
+}
+
+.action-btn.restore-btn:hover {
+    background: #5a359a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(111, 66, 193, 0.3);
+}
+
+.action-btn.restore-btn:active {
+    transform: translateY(0);
+}
+
 /* Accent Selection Controls */
 .accent-controls {
     display: flex;
@@ -544,10 +559,20 @@ body {
     animation: shufflePulse 0.5s ease-in-out;
 }
 
+.vocabulary-card.restoring {
+    animation: restorePulse 0.5s ease-in-out;
+}
+
 @keyframes shufflePulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
+}
+
+@keyframes restorePulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.02); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 /* Hidden states */
@@ -1299,4 +1324,116 @@ body {
     background: #5a6fd8;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* Reset Options Modal Styles */
+.reset-modal-content {
+    max-width: 600px;
+    width: 90%;
+}
+
+.reset-description {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #495057;
+    font-size: 1.1rem;
+}
+
+.reset-options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.reset-option-card {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.reset-option-card:hover {
+    background: #e9ecef;
+    border-color: #6f42c1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(111, 66, 193, 0.2);
+}
+
+.reset-option-icon {
+    font-size: 2.5rem;
+    color: #6f42c1;
+    margin-bottom: 15px;
+}
+
+.reset-option-content h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+}
+
+.reset-option-content p {
+    color: #6c757d;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.reset-option-detail {
+    color: #868e96;
+    font-size: 0.8rem;
+}
+
+.reset-option-detail small {
+    font-weight: 600;
+}
+
+.reset-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.secondary-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+}
+
+.secondary-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.secondary-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive design for reset modal */
+@media (max-width: 768px) {
+    .reset-options-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .reset-modal-content {
+        width: 95%;
+        margin: 20px 10px;
+    }
+    
+    .reset-option-card {
+        padding: 15px;
+    }
+    
+    .reset-option-icon {
+        font-size: 2rem;
+    }
 }
