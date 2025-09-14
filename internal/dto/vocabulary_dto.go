@@ -24,3 +24,20 @@ type VocabularyStats struct {
 	TotalPages   int                    `json:"totalPages"`
 	WordsByPage map[string]interface{} `json:"wordsByPage"`
 }
+
+// WordWithMarkStatus represents a word with its mark status for a user
+type WordWithMarkStatus struct {
+	table.Word
+	IsMarked   bool `json:"isMarked"`
+	MarkCount  int  `json:"markCount"`
+	MarkedAt   int64 `json:"markedAt,omitempty"`
+}
+
+// VocabularyPageWithMarks represents a paginated result with mark status
+type VocabularyPageWithMarks struct {
+	Words      []WordWithMarkStatus `json:"words"`
+	TotalCount int                  `json:"totalCount"`
+	PageNumber int                  `json:"pageNumber"`
+	PageSize   int                  `json:"pageSize"`
+	TotalPages int                  `json:"totalPages"`
+}

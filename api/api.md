@@ -254,14 +254,422 @@ GET /api/stats
 
 ---
 
+### 5. 获取用户学习进度
+
+**接口描述**: 获取用户的学习进度统计信息，包括已认识单词数量、总单词数、学习进度率等
+
+**请求方式**: `GET`
+
+**接口地址**: `/api/user/{userID}/progress`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**请求示例**:
+```bash
+GET /api/user/12345678-1234-1234-1234-123456789012/progress
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "userID": "12345678-1234-1234-1234-123456789012",
+    "knownWords": 156,
+    "totalWords": 3673,
+    "progressRate": 4.25,
+    "recentActivity": 156
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `userID`: 用户ID
+- `knownWords`: 已认识单词数量
+- `totalWords`: 总单词数
+- `progressRate`: 学习进度率（百分比）
+- `recentActivity`: 最近活动数
+
+---
+
+### 6. 标记单词为已认识
+
+**接口描述**: 将指定单词标记为已认识，记录标记时间戳
+
+**请求方式**: `POST`
+
+**接口地址**: `/api/word/mark`
+
+**请求参数** (JSON body):
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| wordID | string | 是 | 单词ID |
+| userID | string | 是 | 用户ID |
+
+**请求示例**:
+```bash
+POST /api/word/mark
+Content-Type: application/json
+
+{
+  "wordID": "12345678-1234-1234-1234-123456789012",
+  "userID": "87654321-4321-4321-4321-210987654321"
+}
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "wordID": "12345678-1234-1234-1234-123456789012",
+    "isMarked": true,
+    "markCount": 1,
+    "message": "单词已标记为认识"
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `wordID`: 单词ID
+- `isMarked`: 是否已标记
+- `markCount`: 标记次数（新设计总是1）
+- `message`: 操作结果消息
+
+---
+
+### 7. 取消单词标记
+
+**接口描述**: 取消单词的已认识标记，将其标记为未知
+
+**请求方式**: `DELETE`
+
+**接口地址**: `/api/word/mark`
+
+**请求参数** (JSON body):
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| wordID | string | 是 | 单词ID |
+| userID | string | 是 | 用户ID |
+
+**请求示例**:
+```bash
+DELETE /api/word/mark
+Content-Type: application/json
+
+{
+  "wordID": "12345678-1234-1234-1234-123456789012",
+  "userID": "87654321-4321-4321-4321-210987654321"
+}
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "wordID": "12345678-1234-1234-1234-123456789012",
+    "isMarked": false,
+    "markCount": 0,
+    "message": "单词标记已移除"
+  },
+  "msg": ""
+}
+```
+
+---
+
+### 8. 检查单词标记状态
+
+**接口描述**: 检查指定单词的标记状态
+
+**请求方式**: `GET`
+
+**接口地址**: `/api/word/{wordID}/mark-status`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| wordID | string | 是 | 单词ID |
+
+**查询参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**请求示例**:
+```bash
+GET /api/word/12345678-1234-1234-1234-123456789012/mark-status?userID=87654321-4321-4321-4321-210987654321
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "wordID": "12345678-1234-1234-1234-123456789012",
+    "isMarked": true,
+    "markCount": 1,
+    "markedAt": 1663245600000
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `wordID`: 单词ID
+- `isMarked`: 是否已标记为认识
+- `markCount`: 标记次数
+- `markedAt`: 标记时间戳（毫秒）
+
+---
+
+### 9. 获取用户已认识单词列表
+
+**接口描述**: 获取用户已认识单词的分页列表
+
+**请求方式**: `GET`
+
+**接口地址**: `/api/user/{userID}/known-words`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**查询参数**:
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| page | int | 否 | 1 | 页码，从1开始 |
+| pageSize | int | 否 | 24 | 每页显示数量，最大100 |
+
+**请求示例**:
+```bash
+GET /api/user/87654321-4321-4321-4321-210987654321/known-words?page=1&pageSize=24
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "wordIDs": [
+      "12345678-1234-1234-1234-123456789012",
+      "87654321-4321-4321-4321-210987654321"
+    ],
+    "totalCount": 156
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `wordIDs`: 已认识单词ID数组
+- `totalCount`: 已认识单词总数
+
+---
+
+### 10. 批量忘光单词
+
+**接口描述**: 批量忘光指定的已认识单词
+
+**请求方式**: `DELETE`
+
+**接口地址**: `/api/user/{userID}/forget-words`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**请求参数** (JSON body):
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| wordIDs | string[] | 是 | 要忘光的单词ID数组 |
+
+**请求示例**:
+```bash
+DELETE /api/user/87654321-4321-4321-4321-210987654321/forget-words
+Content-Type: application/json
+
+{
+  "wordIDs": [
+    "12345678-1234-1234-1234-123456789012",
+    "87654321-4321-4321-4321-210987654321"
+  ]
+}
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "wordIDs": [
+      "12345678-1234-1234-1234-123456789012",
+      "87654321-4321-4321-4321-210987654321"
+    ],
+    "forgottenCount": 2,
+    "message": "已忘光 2 个已认识单词"
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `wordIDs`: 请求忘光的单词ID数组
+- `forgottenCount`: 实际忘光的单词数量
+- `message`: 操作结果消息
+
+---
+
+### 11. 忘光所有单词
+
+**接口描述**: 忘光用户所有已认识单词（需要确认）
+
+**请求方式**: `DELETE`
+
+**接口地址**: `/api/user/{userID}/forget-all`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**请求参数** (JSON body):
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| confirm | boolean | 是 | 确认标志，必须为true |
+
+**请求示例**:
+```bash
+DELETE /api/user/87654321-4321-4321-4321-210987654321/forget-all
+Content-Type: application/json
+
+{
+  "confirm": true
+}
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "forgottenCount": 156,
+    "message": "已忘光全部 156 个已认识单词"
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `forgottenCount`: 忘光的单词数量
+- `message`: 操作结果消息
+
+---
+
+### 12. 获取用户单词统计
+
+**接口描述**: 获取用户的详细单词学习统计信息
+
+**请求方式**: `GET`
+
+**接口地址**: `/api/user/{userID}/word-stats`
+
+**路径参数**:
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userID | string | 是 | 用户ID |
+
+**请求示例**:
+```bash
+GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
+```
+
+**成功响应**:
+```json
+{
+  "code": 0,
+  "data": {
+    "userID": "87654321-4321-4321-4321-210987654321",
+    "knownWordsCount": 156,
+    "totalWordsCount": 3673,
+    "progressRate": 4.25,
+    "recentMarks": [
+      {
+        "wordID": "12345678-1234-1234-1234-123456789012",
+        "knownAt": 1663245600000
+      }
+    ],
+    "knownWordsByDate": {},
+    "topCategories": {}
+  },
+  "msg": ""
+}
+```
+
+**响应字段说明**:
+- `userID`: 用户ID
+- `knownWordsCount`: 已认识单词数量
+- `totalWordsCount`: 总单词数量
+- `progressRate`: 学习进度率
+- `recentMarks`: 最近标记记录
+- `knownWordsByDate`: 按日期分组的已认识单词
+- `topCategories`: 热门分类统计
+
+---
+
 ## 数据模型
 
 ### Word 对象
 
 ```json
 {
-  "english": "string",    // 英文单词
-  "chinese": "string"     // 中文释义
+  "id": "string",           // 单词ID (UUID)
+  "english": "string",      // 英文单词
+  "chinese": "string",      // 中文释义
+  "category": "string",      // 单词分类
+  "difficulty": "string",    // 难度等级
+  "createdAt": 1663245600000, // 创建时间戳
+  "updatedAt": 1663245600000  // 更新时间戳
+}
+```
+
+### WordTag 对象（单词标记）
+
+```json
+{
+  "id": "string",           // 标记ID (UUID)
+  "wordId": "string",       // 单词ID
+  "userId": "string",       // 用户ID
+  "known": 1663245600000,   // 认识时间戳（null表示不认识）
+  "createdAt": 1663245600000, // 创建时间戳
+  "updatedAt": 1663245600000  // 更新时间戳
+}
+```
+
+### WordWithMarkStatus 对象（带标记状态的单词）
+
+```json
+{
+  "word": {                 // Word对象
+    "id": "string",
+    "english": "string",
+    "chinese": "string",
+    "category": "string",
+    "difficulty": "string",
+    "createdAt": 1663245600000,
+    "updatedAt": 1663245600000
+  },
+  "isMarked": true,         // 是否已标记为认识
+  "markCount": 1,           // 标记次数
+  "markedAt": 1663245600000 // 标记时间戳
 }
 ```
 
@@ -269,8 +677,11 @@ GET /api/stats
 
 ```json
 {
-  "items": [],            // Word对象数组
-  "total": 3673           // 总词汇数
+  "items": [],              // 对象数组（根据接口类型可能是Word或WordWithMarkStatus）
+  "total": 3673,            // 总数量
+  "pageNumber": 1,          // 当前页码（可选）
+  "pageSize": 24,            // 每页大小（可选）
+  "totalPages": 153          // 总页数（可选）
 }
 ```
 
@@ -330,6 +741,181 @@ fetch('/api/stats')
       console.error('获取统计失败:', data.msg);
     }
   });
+
+// === 新增：单词标记功能示例 ===
+
+// 获取用户学习进度
+const userID = '87654321-4321-4321-4321-210987654321';
+fetch(`/api/user/${userID}/progress`)
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('学习进度:', data.data);
+      console.log(`已认识 ${data.data.knownWords} 个单词，进度 ${data.data.progressRate}%`);
+    } else {
+      console.error('获取进度失败:', data.msg);
+    }
+  });
+
+// 标记单词为已认识
+const wordID = '12345678-1234-1234-1234-123456789012';
+fetch('/api/word/mark', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    wordID: wordID,
+    userID: userID
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('标记成功:', data.data.message);
+      // 更新UI显示已标记状态
+      updateWordMarkStatus(wordID, true);
+    } else {
+      console.error('标记失败:', data.msg);
+      alert(data.msg);
+    }
+  });
+
+// 取消单词标记
+fetch('/api/word/mark', {
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    wordID: wordID,
+    userID: userID
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('取消标记成功:', data.data.message);
+      // 更新UI显示未标记状态
+      updateWordMarkStatus(wordID, false);
+    } else {
+      console.error('取消标记失败:', data.msg);
+      alert(data.msg);
+    }
+  });
+
+// 检查单词标记状态
+fetch(`/api/word/${wordID}/mark-status?userID=${userID}`)
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('单词标记状态:', data.data);
+      // 更新UI显示标记状态
+      if (data.data.isMarked) {
+        console.log(`该单词已于 ${new Date(data.data.markedAt).toLocaleString()} 标记为认识`);
+      }
+    } else {
+      console.error('获取标记状态失败:', data.msg);
+    }
+  });
+
+// 获取用户已认识单词列表
+fetch(`/api/user/${userID}/known-words?page=1&pageSize=24`)
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('已认识单词:', data.data);
+      console.log(`共 ${data.data.totalCount} 个已认识单词`);
+      // 显示已认识单词列表
+      displayKnownWords(data.data.wordIDs);
+    } else {
+      console.error('获取已认识单词失败:', data.msg);
+    }
+  });
+
+// 批量忘光单词
+const wordsToForget = ['word-id-1', 'word-id-2'];
+fetch(`/api/user/${userID}/forget-words`, {
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    wordIDs: wordsToForget
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('批量忘光成功:', data.data.message);
+      alert(data.data.message);
+      // 刷新页面或更新UI
+      location.reload();
+    } else {
+      console.error('批量忘光失败:', data.msg);
+      alert(data.msg);
+    }
+  });
+
+// 忘光所有单词（需要用户确认）
+if (confirm('确定要忘光所有已认识的单词吗？此操作不可恢复！')) {
+  fetch(`/api/user/${userID}/forget-all`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      confirm: true
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.code === 0) {
+        console.log('忘光所有单词成功:', data.data.message);
+        alert(data.data.message);
+        // 刷新页面或更新UI
+        location.reload();
+      } else {
+        console.error('忘光所有单词失败:', data.msg);
+        alert(data.msg);
+      }
+    });
+}
+
+// 获取用户单词统计
+fetch(`/api/user/${userID}/word-stats`)
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('用户单词统计:', data.data);
+      console.log(`学习进度: ${data.data.progressRate}%`);
+      console.log(`最近标记: ${data.data.recentMarks.length} 个单词`);
+    } else {
+      console.error('获取单词统计失败:', data.msg);
+    }
+  });
+
+// 辅助函数：更新单词标记状态
+function updateWordMarkStatus(wordID, isMarked) {
+  const wordElement = document.querySelector(`[data-word-id="${wordID}"]`);
+  if (wordElement) {
+    wordElement.classList.toggle('marked', isMarked);
+    const markButton = wordElement.querySelector('.mark-button');
+    if (markButton) {
+      markButton.textContent = isMarked ? '已认识' : '标记为认识';
+      markButton.classList.toggle('marked', isMarked);
+    }
+  }
+}
+
+// 辅助函数：显示已认识单词列表
+function displayKnownWords(wordIDs) {
+  const container = document.getElementById('known-words-container');
+  if (container) {
+    container.innerHTML = `<h3>已认识单词 (${wordIDs.length})</h3>`;
+    // 这里可以进一步获取单词详情并显示
+  }
+}
 ```
 
 ### curl 示例
@@ -346,6 +932,50 @@ curl "http://localhost:8080/api/search?q=abandon"
 
 # 获取统计信息
 curl "http://localhost:8080/api/stats"
+
+# === 新增：单词标记功能示例 ===
+
+# 获取用户学习进度
+curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/progress"
+
+# 标记单词为已认识
+curl -X POST "http://localhost:8080/api/word/mark" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wordID": "12345678-1234-1234-1234-123456789012",
+    "userID": "87654321-4321-4321-4321-210987654321"
+  }'
+
+# 取消单词标记
+curl -X DELETE "http://localhost:8080/api/word/mark" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wordID": "12345678-1234-1234-1234-123456789012",
+    "userID": "87654321-4321-4321-4321-210987654321"
+  }'
+
+# 检查单词标记状态
+curl "http://localhost:8080/api/word/12345678-1234-1234-1234-123456789012/mark-status?userID=87654321-4321-4321-4321-210987654321"
+
+# 获取用户已认识单词列表
+curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/known-words?page=1&pageSize=24"
+
+# 批量忘光单词
+curl -X DELETE "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/forget-words" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wordIDs": ["12345678-1234-1234-1234-123456789012", "87654321-4321-4321-4321-210987654321"]
+  }'
+
+# 忘光所有单词
+curl -X DELETE "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/forget-all" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confirm": true
+  }'
+
+# 获取用户单词统计
+curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/word-stats"
 ```
 
 ## 注意事项
@@ -373,6 +1003,27 @@ curl "http://localhost:8080/api/stats"
 - **分页响应简化**: 分页接口只返回 items 数组和 total 总数
 - **错误处理优化**: 所有错误码使用 150321309，错误信息在 msg 字段中
 - **前端计算优化**: 分页信息由前端根据 total 和页大小计算，减少服务端计算
+
+### v1.2.0 (2025-09-14)
+- **单词标记系统重构**: 完全重新设计 word_tags 表结构，从复杂的 JSONB 设计改为简单的时间戳设计
+- **用户数据隔离**: 所有单词标记操作都基于用户ID，确保数据安全和隔离
+- **新增API接口**:
+  - 用户学习进度查询 (/api/user/{userID}/progress)
+  - 单词标记/取消标记 (/api/word/mark)
+  - 单词标记状态查询 (/api/word/{wordID}/mark-status)
+  - 已认识单词列表查询 (/api/user/{userID}/known-words)
+  - 批量忘光单词 (/api/user/{userID}/forget-words)
+  - 忘光所有单词 (/api/user/{userID}/forget-all)
+  - 用户单词统计查询 (/api/user/{userID}/word-stats)
+- **数据模型优化**:
+  - WordTag 结构简化，使用 Known 时间戳字段替代复杂的 UserTags JSONB
+  - 新增 WordWithMarkStatus 结构支持标记状态查询
+  - 所有数据模型完善字段定义和时间戳管理
+- **安全性增强**:
+  - 所有标记操作必须传入有效的用户ID
+  - 批量忘光操作需要明确确认
+  - 用户数据完全隔离，防止跨用户数据访问
+- **API文档完善**: 完整的接口文档和使用示例，包括 JavaScript 和 curl 示例
 
 ---
 

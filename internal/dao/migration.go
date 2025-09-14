@@ -26,6 +26,7 @@ func AutoMigrate() error {
 	err := DB.AutoMigrate(
 		&table.User{},
 		&table.Word{},
+		&table.WordTag{},
 	)
 	if err != nil {
 		log.Error(err).Msg("Database migration failed")

@@ -11,15 +11,17 @@ import (
 
 // VocabularyService handles vocabulary-related business logic
 type VocabularyService struct {
-	wordDAO *dao.WordDAO
+	wordDAO    *dao.WordDAO
+	wordTagDAO *dao.WordTagDAO
 }
 
 // NewVocabularyService creates a new vocabulary service instance
-func NewVocabularyService(wordDAO *dao.WordDAO) *VocabularyService {
+func NewVocabularyService(wordDAO *dao.WordDAO, wordTagDAO *dao.WordTagDAO) *VocabularyService {
 	log.Info().Msg("Creating vocabulary service with database backend")
 
 	return &VocabularyService{
-		wordDAO: wordDAO,
+		wordDAO:    wordDAO,
+		wordTagDAO: wordTagDAO,
 	}
 }
 
@@ -272,4 +274,246 @@ func (vs *VocabularyService) DeleteWord(id string) error {
 // GetWordByID retrieves a word by ID
 func (vs *VocabularyService) GetWordByID(id string) (*table.Word, error) {
 	return vs.wordDAO.GetByID(id)
+}
+
+// GetWordsByPageWithMarks returns words with mark status for a specific page
+func (vs *VocabularyService) GetWordsByPageWithMarks(baseList *dao.BaseList, userID string) (*dto.VocabularyPageWithMarks, error) {
+	// Get words and total count from database
+	words, totalCount, err := vs.wordDAO.GetWordsByPage(baseList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get words by page: %w", err)
+	}
+
+	// Convert words to words with mark status
+	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
+	for i, word := range words {
+		wordWithMark := dto.WordWithMarkStatus{
+			Word: word,
+		}
+
+		// Get mark status for this word and user
+		if userID != "" {
+			isMarked, err := vs.wordTagDAO.IsWordMarkedAsKnown(word.ID, userID)
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Str("user_id", userID).Msg("Failed to get mark status")
+			} else {
+				wordWithMark.IsMarked = isMarked
+			}
+
+			// Get mark count
+			// In new design, mark count is always 1 if known, 0 if unknown
+		var markCount int
+		if isMarked {
+			markCount = 1
+		}
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
+			} else {
+				wordWithMark.MarkCount = markCount
+			}
+
+			// Get marked timestamp if marked
+			if isMarked {
+				// In new design, get the known timestamp from the word tag
+				wordTag, err := vs.wordTagDAO.GetByWordIDAndUserID(word.ID, userID)
+				if err == nil && wordTag.IsKnown() {
+					wordWithMark.MarkedAt = wordTag.GetKnownTimestamp()
+				}
+			}
+		}
+
+		wordsWithMarks[i] = wordWithMark
+	}
+
+	// Calculate pagination info only if pagination is requested
+	var pageNumber, pageSize, totalPages int
+	if baseList != nil {
+		pageNumber = baseList.PageNum
+		pageSize = baseList.PageSize
+		if pageSize > 0 {
+			totalPages = int((totalCount + int64(pageSize) - 1) / int64(pageSize))
+		}
+	}
+
+	return &dto.VocabularyPageWithMarks{
+		Words:      wordsWithMarks,
+		TotalCount: int(totalCount),
+		PageNumber: pageNumber,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// SearchWordsWithMarks searches for words with mark status
+func (vs *VocabularyService) SearchWordsWithMarks(query string, userID string) ([]dto.WordWithMarkStatus, error) {
+	if len(query) < 2 {
+		return []dto.WordWithMarkStatus{}, nil
+	}
+
+	words, err := vs.wordDAO.SearchWords(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search words: %w", err)
+	}
+
+	// Convert words to words with mark status
+	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
+	for i, word := range words {
+		wordWithMark := dto.WordWithMarkStatus{
+			Word: word,
+		}
+
+		// Get mark status for this word and user
+		if userID != "" {
+			isMarked, err := vs.wordTagDAO.IsWordMarkedAsKnown(word.ID, userID)
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Str("user_id", userID).Msg("Failed to get mark status")
+			} else {
+				wordWithMark.IsMarked = isMarked
+			}
+
+			// Get mark count
+			// In new design, mark count is always 1 if known, 0 if unknown
+		var markCount int
+		if isMarked {
+			markCount = 1
+		}
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
+			} else {
+				wordWithMark.MarkCount = markCount
+			}
+		}
+
+		wordsWithMarks[i] = wordWithMark
+	}
+
+	log.Info().Str("query", query).Int("results", len(wordsWithMarks)).Msg("Database search with marks completed")
+	return wordsWithMarks, nil
+}
+
+// GetRandomWordsWithMarks returns random words with mark status
+func (vs *VocabularyService) GetRandomWordsWithMarks(count int, userID string) ([]dto.WordWithMarkStatus, error) {
+	if count <= 0 {
+		return []dto.WordWithMarkStatus{}, nil
+	}
+
+	words, err := vs.wordDAO.GetRandomWords(count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get random words: %w", err)
+	}
+
+	// Convert words to words with mark status
+	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
+	for i, word := range words {
+		wordWithMark := dto.WordWithMarkStatus{
+			Word: word,
+		}
+
+		// Get mark status for this word and user
+		if userID != "" {
+			isMarked, err := vs.wordTagDAO.IsWordMarkedAsKnown(word.ID, userID)
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Str("user_id", userID).Msg("Failed to get mark status")
+			} else {
+				wordWithMark.IsMarked = isMarked
+			}
+
+			// Get mark count
+			// In new design, mark count is always 1 if known, 0 if unknown
+		var markCount int
+		if isMarked {
+			markCount = 1
+		}
+			if err != nil {
+				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
+			} else {
+				wordWithMark.MarkCount = markCount
+			}
+		}
+
+		wordsWithMarks[i] = wordWithMark
+	}
+
+	return wordsWithMarks, nil
+}
+
+// GetKnownWordsByUser returns known words for a user with full word details
+func (vs *VocabularyService) GetKnownWordsByUser(userID string, baseList *dao.BaseList) (*dto.VocabularyPageWithMarks, error) {
+	// Get known word IDs
+	wordIDs, totalCount, err := vs.wordTagDAO.GetKnownWords(userID, baseList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get known words: %w", err)
+	}
+
+	// Get full word details
+	var words []table.Word
+	for _, wordID := range wordIDs {
+		word, err := vs.wordDAO.GetByID(wordID)
+		if err != nil {
+			log.Warn().Err(err).Str("word_id", wordID).Msg("Failed to get word details")
+			continue
+		}
+		words = append(words, *word)
+	}
+
+	// Convert to words with mark status
+	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
+	for i, word := range words {
+		wordWithMark := dto.WordWithMarkStatus{
+			Word:      word,
+			IsMarked:  true, // These are known words, so they should be marked
+			MarkCount: 1,    // At least the current user marked it
+		}
+
+		// Get marked timestamp from word tag
+		// In new design, get the known timestamp from the word tag
+		wordTag, err := vs.wordTagDAO.GetByWordIDAndUserID(word.ID, userID)
+		if err == nil && wordTag.IsKnown() {
+			wordWithMark.MarkedAt = wordTag.GetKnownTimestamp()
+		}
+
+		wordsWithMarks[i] = wordWithMark
+	}
+
+	// Calculate pagination info
+	var pageNumber, pageSize, totalPages int
+	if baseList != nil {
+		pageNumber = baseList.PageNum
+		pageSize = baseList.PageSize
+		if pageSize > 0 {
+			totalPages = int((totalCount + int64(pageSize) - 1) / int64(pageSize))
+		}
+	}
+
+	return &dto.VocabularyPageWithMarks{
+		Words:      wordsWithMarks,
+		TotalCount: int(totalCount),
+		PageNumber: pageNumber,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+
+// GetPageWords returns words for a specific page (simplified version for forget functionality)
+func (vs *VocabularyService) GetPageWords(page, pageSize int) ([]table.Word, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 12 // Default page size
+	}
+
+	// Create BaseList for pagination
+	baseList := &dao.BaseList{
+		PageNum:  page,
+		PageSize: pageSize,
+	}
+
+	words, _, err := vs.wordDAO.GetWordsByPage(baseList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get page words: %w", err)
+	}
+
+	return words, nil
 }

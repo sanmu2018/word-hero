@@ -211,6 +211,21 @@ word-hero/
 - Automatic timestamp management with GORM hooks
 - Proper indexing for UUID primary keys
 
+#### Foreign Key Policy
+**STRICT PROHIBITION**: The use of foreign key constraints is strictly prohibited in this project. All database relationships must be managed at the application level through business logic rather than database-level foreign key constraints.
+
+**Reasoning**:
+- Foreign keys create coupling between tables that complicates database schema evolution
+- They reduce development flexibility and make schema migrations more complex
+- Application-level relationship management provides better control over data integrity
+- This approach aligns with modern microservices and distributed systems architecture patterns
+
+**Implementation Requirements**:
+- All database schemas must avoid `FOREIGN KEY` constraints
+- Data relationships must be maintained through application logic in the service layer
+- Referential integrity must be enforced programmatically during CRUD operations
+- Data consistency checks should be implemented as part of business logic validation
+
 ### Go Project Structure Standards
 
 #### Directory Organization

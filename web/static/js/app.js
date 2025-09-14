@@ -46,8 +46,8 @@ function initializeApp() {
     // Set up event listeners
     setupEventListeners();
 
-    // Load known words from localStorage
-    loadKnownWords();
+    // Load known words from API (with localStorage fallback)
+    loadKnownWordsFromAPI();
 
     // Load word timestamps
     loadWordTimestamps();
@@ -255,6 +255,9 @@ function updatePageContent(data) {
 
     // Apply current visibility settings to new content
     applyVisibilitySettings();
+
+    // Update known words status from API
+    updateKnownWordsStatus();
 }
 
 function createVocabularyCard(word, displayNumber) {
@@ -274,11 +277,12 @@ function createVocabularyCard(word, displayNumber) {
     const card = document.createElement('div');
     card.className = 'vocabulary-card';
     card.setAttribute('data-word', english);
+    card.setAttribute('data-word-id', word.id || '');
     
     // Process Chinese translation
     const chineseTranslation = processTranslation(chinese);
 
-    const isKnown = knownWords.has(english);
+    const isKnown = knownWords.has(english) || (window.apiKnownWordIds && word.id && window.apiKnownWordIds.has(word.id));
 
     card.innerHTML = `
         <button class="action-btn" onclick="toggleWordMenu(event, '${escapeJsString(english)}')" title="更多操作">
@@ -319,6 +323,54 @@ function createVocabularyCard(word, displayNumber) {
             selectCard(this);
         }
     });
+
+    // Add click event listeners for inline menu items
+    const knownAction = card.querySelector('.known-action');
+    const unknownAction = card.querySelector('.unknown-action');
+    const detailAction = card.querySelector('.detail-action');
+
+    if (knownAction) {
+        knownAction.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const word = this.dataset.word;
+            const wordId = card.dataset.wordId;
+            if (word && wordId) {
+                markWordAsKnownWithAPI(word, wordId);
+            } else if (word) {
+                markWordAsKnown(word);
+            }
+            // Hide the menu
+            const menu = card.querySelector('.word-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
+
+    if (unknownAction) {
+        unknownAction.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const word = this.dataset.word;
+            const wordId = card.dataset.wordId;
+            if (word && wordId) {
+                markWordAsUnknownWithAPI(word, wordId);
+            } else if (word) {
+                markWordAsUnknown(word);
+            }
+            // Hide the menu
+            const menu = card.querySelector('.word-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
+
+    if (detailAction) {
+        detailAction.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const word = this.dataset.word;
+            showWordDetail(word);
+            // Hide the menu
+            const menu = card.querySelector('.word-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
     
     // Apply known word state if needed
     if (isKnown) {
@@ -1150,35 +1202,52 @@ function showToast(message, type = 'info') {
 
 // Word action functions
 let currentActionWord = null; // Track current word for action modal
+let currentActionWordId = null; // Track current word ID for action modal
 
 function toggleWordMenu(event, word) {
     event.stopPropagation();
-    
-    currentActionWord = word;
-    
-    // Update modal title
-    const title = document.getElementById('wordActionTitle');
-    if (title) {
-        title.textContent = `单词 - ${word}`;
+
+    // Get word ID from the card
+    const card = event.target.closest('.vocabulary-card');
+    const wordId = card ? card.dataset.wordId : null;
+
+    // Show modal instead of inline menu
+    showWordActionModal(word, wordId);
+}
+
+function updateInlineMenuButtons(card, word) {
+    const knownAction = card.querySelector('.known-action');
+    const unknownAction = card.querySelector('.unknown-action');
+
+    // Check if word is known using either local knownWords set or API word IDs
+    let isKnown = knownWords.has(word);
+
+    // Also check against API known word IDs if available
+    if (!isKnown && window.apiKnownWordIds && card.dataset.wordId) {
+        isKnown = window.apiKnownWordIds.has(card.dataset.wordId);
     }
-    
-    // Show modal
-    const modal = document.getElementById('wordActionModal');
-    if (modal) {
-        modal.style.display = 'block';
-        
-        // Update button states based on current word status
-        updateActionModalButtons(word);
-    } else {
-        console.error('Word action modal not found');
+
+    if (knownAction) {
+        knownAction.style.display = isKnown ? 'none' : 'block';
+    }
+    if (unknownAction) {
+        unknownAction.style.display = isKnown ? 'block' : 'none';
     }
 }
 
 function updateActionModalButtons(word) {
     const knownBtn = document.querySelector('.known-btn');
     const unknownBtn = document.querySelector('.unknown-btn');
-    
-    if (knownWords.has(word)) {
+
+    // Check if word is known using either local knownWords set or API word IDs
+    let isKnown = knownWords.has(word);
+
+    // Also check against API known word IDs if available and we have a current action word ID
+    if (!isKnown && window.apiKnownWordIds && currentActionWordId) {
+        isKnown = window.apiKnownWordIds.has(currentActionWordId);
+    }
+
+    if (isKnown) {
         knownBtn.style.display = 'none';
         unknownBtn.style.display = 'flex';
     } else {
@@ -1188,16 +1257,61 @@ function updateActionModalButtons(word) {
 }
 
 function markCurrentWordAsKnown() {
-    if (currentActionWord) {
+
+    // Try to get word from selected card first
+    if (selectedCard) {
+        const word = selectedCard.getAttribute('data-word');
+        const wordId = selectedCard.getAttribute('data-word-id');
+
+        if (word && wordId) {
+            // Use the new API-based marking function
+            markWordAsKnownWithAPI(word, wordId);
+            return;
+        } else if (word) {
+            // Fallback to localStorage if no word ID
+            markWordAsKnown(word);
+            return;
+        }
+    }
+
+    // Fallback to action modal context
+    if (currentActionWord && currentActionWordId) {
+        markWordAsKnownWithAPI(currentActionWord, currentActionWordId);
+        closeWordActionModal();
+    } else if (currentActionWord) {
         markWordAsKnown(currentActionWord);
         closeWordActionModal();
+    } else {
+        showToast('请先选择一个单词', 'error');
     }
 }
 
 function markCurrentWordAsUnknown() {
-    if (currentActionWord) {
+    // Try to get word from selected card first
+    if (selectedCard) {
+        const word = selectedCard.getAttribute('data-word');
+        const wordId = selectedCard.getAttribute('data-word-id');
+
+        if (word && wordId) {
+            // Use the new API-based marking function
+            markWordAsUnknownWithAPI(word, wordId);
+            return;
+        } else if (word) {
+            // Fallback to localStorage if no word ID
+            markWordAsUnknown(word);
+            return;
+        }
+    }
+
+    // Fallback to action modal context
+    if (currentActionWord && currentActionWordId) {
+        markWordAsUnknownWithAPI(currentActionWord, currentActionWordId);
+        closeWordActionModal();
+    } else if (currentActionWord) {
         markWordAsUnknown(currentActionWord);
         closeWordActionModal();
+    } else {
+        showToast('请先选择一个单词', 'error');
     }
 }
 
@@ -1208,6 +1322,25 @@ function showCurrentWordDetail() {
     }
 }
 
+function showWordActionModal(word, wordId = null) {
+    const modal = document.getElementById('wordActionModal');
+    const title = document.getElementById('wordActionTitle');
+
+    // Set the word for action functions
+    currentActionWord = word;
+    currentActionWordId = wordId;
+
+    // Update modal title
+    title.textContent = `单词操作: ${word}`;
+
+    // Update button states based on word status
+    updateActionModalButtons(word);
+
+    // Show modal
+    modal.style.display = 'block';
+
+}
+
 function closeWordActionModal() {
     const modal = document.getElementById('wordActionModal');
     modal.style.display = 'none';
@@ -1216,23 +1349,182 @@ function closeWordActionModal() {
 
 
 function markWordAsKnown(word) {
-    knownWords.add(word);
-    wordTimestamps.set(word, new Date().toISOString());
-    saveKnownWords();
-    saveWordTimestamps();
-    updateWordCardAppearance(word, true);
-    showToast(`"${word}" 已标记为认识`, 'success');
-    closeWordActionModal();
+    // First get the word ID from the card data attribute
+    const card = document.querySelector(`.vocabulary-card[data-word="${word}"]`);
+    const wordId = card ? card.dataset.wordId : null;
+
+    if (!wordId) {
+        showToast('无法获取单词ID', 'error');
+        return;
+    }
+
+    // Call API to mark word as known
+    fetch('/api/word-tags/mark', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+            wordId: wordId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            knownWords.add(word);
+            wordTimestamps.set(word, new Date().toISOString());
+            saveKnownWords();
+            saveWordTimestamps();
+            updateWordCardAppearance(word, true);
+            updateWordMarkStatus(wordId, true, data.data.markCount);
+            showToast(`"${word}" 已标记为认识`, 'success');
+            closeWordActionModal();
+        } else {
+            showToast(data.msg || '标记失败', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error marking word as known:', error);
+        showToast('网络错误，请重试', 'error');
+    });
 }
 
 function markWordAsUnknown(word) {
-    knownWords.delete(word);
-    wordTimestamps.delete(word);
-    saveKnownWords();
-    saveWordTimestamps();
-    updateWordCardAppearance(word, false);
-    showToast(`"${word}" 已标记为不认识`, 'info');
-    closeWordActionModal();
+    // First get the word ID from the card data attribute
+    const card = document.querySelector(`.vocabulary-card[data-word="${word}"]`);
+    const wordId = card ? card.dataset.wordId : null;
+
+    if (!wordId) {
+        showToast('无法获取单词ID', 'error');
+        return;
+    }
+
+    // Call API to unmark word
+    fetch('/api/word-tags/unmark', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+            wordId: wordId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            knownWords.delete(word);
+            wordTimestamps.delete(word);
+            saveKnownWords();
+            saveWordTimestamps();
+            updateWordCardAppearance(word, false);
+            updateWordMarkStatus(wordId, false, data.data.markCount);
+            showToast(`"${word}" 已标记为不认识`, 'info');
+            closeWordActionModal();
+        } else {
+            showToast(data.msg || '取消标记失败', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error unmarking word:', error);
+        showToast('网络错误，请重试', 'error');
+    });
+}
+
+function markWordAsKnownWithAPI(word, wordId) {
+    const token = getAuthToken();
+    if (!token) {
+        showToast('请先登录后再进行操作', 'error');
+        setTimeout(() => showLoginModal(), 1000);
+        return;
+    }
+
+    // Call API to mark word as known
+    fetch('/api/word-tags/mark', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            wordId: wordId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            knownWords.add(word);
+            wordTimestamps.set(word, new Date().toISOString());
+            saveKnownWords();
+            saveWordTimestamps();
+            updateWordCardAppearance(word, true);
+            updateWordMarkStatus(wordId, true, data.data.markCount);
+
+            // Update API known words cache
+            if (!window.apiKnownWordIds) {
+                window.apiKnownWordIds = new Set();
+            }
+            window.apiKnownWordIds.add(wordId);
+
+            showToast(`"${word}" 已标记为认识`, 'success');
+        } else if (data.code === 401) {
+            showToast('请先登录后再进行操作', 'error');
+            setTimeout(() => showLoginModal(), 1000);
+        } else {
+            showToast(data.msg || '标记失败', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('网络错误，请重试', 'error');
+    });
+}
+
+function markWordAsUnknownWithAPI(word, wordId) {
+    const token = getAuthToken();
+    if (!token) {
+        showToast('请先登录后再进行操作', 'error');
+        setTimeout(() => showLoginModal(), 1000);
+        return;
+    }
+
+    // Call API to unmark word
+    fetch('/api/word-tags/unmark', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            wordId: wordId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            knownWords.delete(word);
+            wordTimestamps.delete(word);
+            saveKnownWords();
+            saveWordTimestamps();
+            updateWordCardAppearance(word, false);
+            updateWordMarkStatus(wordId, false, data.data.markCount);
+
+            // Update API known words cache - remove the word ID
+            if (window.apiKnownWordIds) {
+                window.apiKnownWordIds.delete(wordId);
+            }
+
+            showToast(`"${word}" 已标记为不认识`, 'info');
+        } else if (data.code === 401) {
+            showToast('请先登录后再进行操作', 'error');
+            setTimeout(() => showLoginModal(), 1000);
+        } else {
+            showToast(data.msg || '取消标记失败', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('网络错误，请重试', 'error');
+    });
 }
 
 function updateWordCardAppearance(word, isKnown) {
@@ -1246,6 +1538,86 @@ function updateWordCardAppearance(word, isKnown) {
     }
 }
 
+function updateWordMarkStatus(wordId, isMarked, markCount) {
+    // Mark badge functionality removed - no longer needed
+    // This function is kept for compatibility but does nothing
+}
+
+function getAuthToken() {
+    return localStorage.getItem('authToken');
+}
+
+function loadKnownWordsFromAPI() {
+    // Load from localStorage first for immediate feedback
+    loadKnownWords();
+
+    const token = getAuthToken();
+    if (!token) {
+        // Not logged in, use localStorage data only
+        return;
+    }
+
+    // Try to load from API for accurate data
+    fetch('/api/word-tags/known', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0 && data.data && data.data.wordIds) {
+            // Store known word IDs from API
+            window.apiKnownWordIds = new Set(data.data.wordIds);
+
+            // Update the UI based on API data
+            updateKnownWordsStatus();
+        } else if (data.code === 401) {
+            // Token invalid, clear it and continue with localStorage
+            localStorage.removeItem('authToken');
+        }
+    })
+    .catch(error => {
+        // Continue with localStorage data
+    });
+}
+
+// Update known words status on the current page
+function updateKnownWordsStatus() {
+    if (!window.apiKnownWordIds) return;
+
+    const cards = document.querySelectorAll('.vocabulary-card');
+    cards.forEach(card => {
+        const wordId = card.dataset.wordId;
+        if (wordId && window.apiKnownWordIds.has(wordId)) {
+            // Add known-word class and animation
+            card.classList.add('known-word');
+
+            // Add marking animation for visual feedback
+            card.classList.add('marking-known');
+
+            // Remove animation class after animation completes
+            setTimeout(() => {
+                card.classList.remove('marking-known');
+            }, 600);
+
+            // Also add to local knownWords set for consistency
+            const wordText = card.querySelector('.english-word').textContent;
+            knownWords.add(wordText);
+        }
+    });
+
+    // Update inline menu buttons for all cards to show correct action buttons
+    cards.forEach(card => {
+        const wordText = card.querySelector('.english-word').textContent;
+        updateInlineMenuButtons(card, wordText);
+    });
+
+    // Save to localStorage for consistency
+    saveKnownWords();
+}
+
 function resetKnownWords() {
     // Show reset options modal instead of confirmation dialog
     showResetOptionsModal();
@@ -1253,12 +1625,18 @@ function resetKnownWords() {
 
 function showResetOptionsModal() {
     const modal = document.getElementById('resetOptionsModal');
-    
+
     // Update the modal with current page information
-    document.getElementById('currentPageNumber').textContent = currentPage;
-    document.getElementById('totalPagesNumber').textContent = totalPages;
-    document.getElementById('totalWordsNumber').textContent = window.initialPageData ? window.initialPageData.totalWords : '3673';
-    
+    const currentPageElement = document.getElementById('currentPageNumber');
+    const totalPagesElement = document.getElementById('totalPagesNumber');
+
+    if (currentPageElement) {
+        currentPageElement.textContent = currentPage;
+    }
+    if (totalPagesElement) {
+        totalPagesElement.textContent = totalPages;
+    }
+
     modal.style.display = 'block';
 }
 
@@ -1268,59 +1646,139 @@ function closeResetOptionsModal() {
 }
 
 function resetCurrentPage() {
-    // Get current page words
+    const token = getAuthToken();
+    if (!token) {
+        showToast('请先登录后再进行操作', 'error');
+        setTimeout(() => showLoginModal(), 1000);
+        return;
+    }
+
+    // Get current page and page size
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+
+    // Collect word IDs from current page
     const currentCards = document.querySelectorAll('.vocabulary-card');
-    let resetCount = 0;
-    
+    const wordIds = [];
+
     currentCards.forEach(card => {
-        const word = card.getAttribute('data-word');
-        if (word && knownWords.has(word)) {
-            knownWords.delete(word);
-            wordTimestamps.delete(word);
-            card.classList.remove('known-word');
-            resetCount++;
+        const wordId = card.getAttribute('data-word-id');
+        if (wordId) {
+            wordIds.push(wordId);
         }
     });
-    
-    // Save changes
-    saveKnownWords();
-    saveWordTimestamps();
-    
-    // Close modal
-    closeResetOptionsModal();
-    
-    // Show feedback
-    showToast(`已重置当前页面的 ${resetCount} 个单词标记`, 'success');
-    
-    // Restore original order for current page
-    if (originalWordOrder.length > 0) {
-        restoreOriginalOrder();
+
+    if (wordIds.length === 0) {
+        showToast('当前页面没有可忘光的单词', 'info');
+        return;
     }
+
+    // Call API to forget specific words
+    fetch('/api/word-tags/forget-words', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            wordIds: wordIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            // Update local knownWords cache
+            const currentCards = document.querySelectorAll('.vocabulary-card');
+            currentCards.forEach(card => {
+                const word = card.getAttribute('data-word');
+                if (word && knownWords.has(word)) {
+                    knownWords.delete(word);
+                    wordTimestamps.delete(word);
+                    card.classList.remove('known-word');
+                }
+            });
+
+            // Update API known words cache
+            if (window.apiKnownWordIds && data.data && data.data.wordIds) {
+                data.data.wordIds.forEach(wordId => {
+                    window.apiKnownWordIds.delete(wordId);
+                });
+            }
+
+            // Save changes
+            saveKnownWords();
+            saveWordTimestamps();
+
+            // Close modal
+            closeResetOptionsModal();
+
+            // Show feedback
+            showToast(data.data.message || `已忘光当前页面的 ${data.data.forgottenCount} 个已认识单词`, 'success');
+
+            // Refresh current page
+            loadPage(currentPage, pageSize);
+        } else if (data.code === 401) {
+            showToast('请先登录后再进行操作', 'error');
+            setTimeout(() => showLoginModal(), 1000);
+        } else {
+            showToast(data.msg || '忘光失败', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('网络错误，请重试', 'error');
+    });
 }
 
 function resetAllPages() {
-    // Confirm before resetting all pages
-    if (confirm('确定要重置所有页面的单词标记状态吗？这将清除所有已认识单词的记录。')) {
-        const totalKnown = knownWords.size;
-        
-        // Clear all known words and timestamps
-        knownWords.clear();
-        wordTimestamps.clear();
-        
-        // Save to localStorage
-        saveKnownWords();
-        saveWordTimestamps();
-        
-        // Close modal
-        closeResetOptionsModal();
-        
-        // Reload current page to refresh display
-        const pageSizeSelect = document.getElementById('pageSizeSelect');
-        const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
-        loadPage(currentPage, pageSize);
-        
-        // Show feedback
-        showToast(`已重置全部 ${totalKnown} 个已标记单词`, 'success');
+    const token = getAuthToken();
+    if (!token) {
+        showToast('请先登录后再进行操作', 'error');
+        setTimeout(() => showLoginModal(), 1000);
+        return;
+    }
+
+    // Confirm before forgetting all words
+    if (confirm('确定要忘光所有已认识的单词吗？这将清除所有单词的已认识标记。')) {
+        // Call API to forget all words
+        fetch('/api/word-tags/forget-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                confirm: true
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                // Clear local caches
+                knownWords.clear();
+                wordTimestamps.clear();
+                window.apiKnownWordIds.clear();
+
+                // Save to localStorage
+                saveKnownWords();
+                saveWordTimestamps();
+
+                // Close modal
+                closeResetOptionsModal();
+
+                showToast(data.data.message || `已忘光全部 ${data.data.forgottenCount} 个已认识单词`, 'success');
+
+                // Reload current page to refresh display
+                const pageSizeSelect = document.getElementById('pageSizeSelect');
+                const pageSize = pageSizeSelect ? parseInt(pageSizeSelect.value) : 24;
+                loadPage(currentPage, pageSize);
+            } else {
+                showToast(data.msg || '操作失败，请重试', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error forgetting all words:', error);
+            showToast('网络错误，请重试', 'error');
+        });
     }
 }
 
@@ -1584,7 +2042,18 @@ document.addEventListener('click', function(e) {
     if (actionModal && actionModal.style.display === 'block' && e.target === actionModal) {
         closeWordActionModal();
     }
-    
+
+    // Close inline menus when clicking outside
+    if (!e.target.closest('.vocabulary-card') || !e.target.closest('.action-btn')) {
+        // Close all inline menus
+        const allMenus = document.querySelectorAll('.word-menu');
+        allMenus.forEach(menu => {
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            }
+        });
+    }
+
     // Prevent card selection when clicking action button
     if (e.target.closest('.action-btn')) {
         e.stopPropagation();

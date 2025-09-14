@@ -40,8 +40,9 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to run database migrations")
 	}
 
-	// Initialize Word DAO
+	// Initialize DAOs
 	wordDAO := dao.NewWordDAO()
+	wordTagDAO := dao.NewWordTagDAO()
 
 	// Check if word data is available
 	log.Info().Msg("Validating word data availability...")
@@ -72,13 +73,14 @@ func main() {
 
 	// Initialize service layer
 	pagerService := service.NewPagerService()
-	vocabularyService := service.NewVocabularyService(wordDAO)
+	vocabularyService := service.NewVocabularyService(wordDAO, wordTagDAO)
+	wordTagService := service.NewWordTagService(wordTagDAO, wordDAO, userDAO, vocabularyService)
 
 	// Set service dependencies
 	pagerService.SetVocabularyService(vocabularyService)
 
 	// Initialize router layer
-	webServer := router.NewWebServer(vocabularyService, pagerService, authService, userService, authMiddleware, "web/templates")
+	webServer := router.NewWebServer(vocabularyService, pagerService, authService, userService, wordTagService, authMiddleware, "web/templates")
 
 	// Show database info
 	log.Info().Str("database", config.Database.DBName).Msg("Database Information:")

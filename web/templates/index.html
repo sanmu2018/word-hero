@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Hero - 雅思词汇学习</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20250914-4">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
@@ -77,9 +77,9 @@
                         <i class="fas fa-undo-alt"></i>
                         恢复
                     </button>
-                    <button id="resetKnownWords" class="action-btn reset-btn" title="重置所有标记和顺序 (Ctrl+Shift+R)">
-                        <i class="fas fa-undo"></i>
-                        重置
+                    <button id="resetKnownWords" class="action-btn reset-btn" title="忘光所有标记 (Ctrl+Shift+R)">
+                        <i class="fas fa-brain"></i>
+                        忘光
                     </button>
                 </div>
                 
@@ -284,14 +284,14 @@
     <div class="modal" id="resetOptionsModal">
         <div class="modal-content reset-modal-content">
             <div class="modal-header">
-                <h2><i class="fas fa-undo"></i> 重置选项</h2>
+                <h2><i class="fas fa-brain"></i> 忘光选项</h2>
                 <button class="close-btn" onclick="closeResetOptionsModal()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="modal-body">
                 <div class="reset-description">
-                    <p>请选择重置的范围：</p>
+                    <p>请选择忘光的范围：</p>
                 </div>
                 <div class="reset-options-grid">
                     <div class="reset-option-card" onclick="resetCurrentPage()">
@@ -300,9 +300,9 @@
                         </div>
                         <div class="reset-option-content">
                             <h3>当前页面</h3>
-                            <p>清除当前页面的所有单词标记状态</p>
+                            <p>忘光当前页面的所有已认识单词</p>
                             <div class="reset-option-detail">
-                                <small>只影响第 <span id="currentPageNumber">1</span> 页的单词</small>
+                                <small>只忘光第 <span id="currentPageNumber">1</span> 页的已认识单词</small>
                             </div>
                         </div>
                     </div>
@@ -312,9 +312,9 @@
                         </div>
                         <div class="reset-option-content">
                             <h3>全部页面</h3>
-                            <p>清除所有页面的单词标记状态</p>
+                            <p>忘光全部页面的所有已认识单词</p>
                             <div class="reset-option-detail">
-                                <small>影响全部 <span id="totalPagesNumber">147</span> 页的 <span id="totalWordsNumber">3673</span> 个单词</small>
+                                <small>忘光全部 <span id="totalPagesNumber">147</span> 页中所有已认识的单词</small>
                             </div>
                         </div>
                     </div>
@@ -508,6 +508,6 @@
             pageSize: {{.PageSize}}
         };
     </script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=20250914-8"></script>
 </body>
 </html>

@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sanmu2018/word-hero/internal/dao"
 	"github.com/sanmu2018/word-hero/internal/dto"
-	"github.com/sanmu2018/word-hero/internal/models"
 	"github.com/sanmu2018/word-hero/internal/middleware"
+	"github.com/sanmu2018/word-hero/internal/models"
 	"github.com/sanmu2018/word-hero/internal/service"
 	"github.com/sanmu2018/word-hero/internal/table"
 	"github.com/sanmu2018/word-hero/log"
@@ -23,16 +24,16 @@ type WebServer struct {
 	pagerService      *service.PagerService
 	authService       *service.AuthService
 	userService       *service.UserService
+	wordTagService    *service.WordTagService
 	authMiddleware    *middleware.AuthMiddleware
 	templateDir       string
 	engine            *gin.Engine
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(vocabularyService *service.VocabularyService, pagerService *service.PagerService, authService *service.AuthService, userService *service.UserService, authMiddleware *middleware.AuthMiddleware, templateDir string) *WebServer {
+func NewWebServer(vocabularyService *service.VocabularyService, pagerService *service.PagerService, authService *service.AuthService, userService *service.UserService, wordTagService *service.WordTagService, authMiddleware *middleware.AuthMiddleware, templateDir string) *WebServer {
 	log.Info().Str("templateDir", templateDir).Msg("Creating web server")
 
-	
 	// Create Gin engine
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -43,6 +44,7 @@ func NewWebServer(vocabularyService *service.VocabularyService, pagerService *se
 		pagerService:      pagerService,
 		authService:       authService,
 		userService:       userService,
+		wordTagService:    wordTagService,
 		authMiddleware:    authMiddleware,
 		templateDir:       templateDir,
 		engine:            engine,
@@ -67,16 +69,16 @@ func NewWebServer(vocabularyService *service.VocabularyService, pagerService *se
 // PageData represents the data passed to templates
 type PageData struct {
 	Words       []table.Word `json:"words"`
-	CurrentPage int       `json:"currentPage"`
-	TotalPages  int       `json:"totalPages"`
-	TotalWords  int       `json:"totalWords"`
-	PageSize    int       `json:"pageSize"`
-	HasPrev     bool      `json:"hasPrev"`
-	HasNext     bool      `json:"hasNext"`
-	PrevPage    int       `json:"prevPage"`
-	NextPage    int       `json:"nextPage"`
-	StartIndex  int       `json:"startIndex"`
-	EndIndex    int       `json:"endIndex"`
+	CurrentPage int          `json:"currentPage"`
+	TotalPages  int          `json:"totalPages"`
+	TotalWords  int          `json:"totalWords"`
+	PageSize    int          `json:"pageSize"`
+	HasPrev     bool         `json:"hasPrev"`
+	HasNext     bool         `json:"hasNext"`
+	PrevPage    int          `json:"prevPage"`
+	NextPage    int          `json:"nextPage"`
+	StartIndex  int          `json:"startIndex"`
+	EndIndex    int          `json:"endIndex"`
 }
 
 // APIResponse represents the JSON response for API calls
@@ -115,6 +117,21 @@ func (ws *WebServer) setupRoutes() {
 		user.Use(ws.authMiddleware.RequireAuth())
 		{
 			user.GET("/profile", ws.apiGetUserProfileHandler)
+		}
+
+		// Word tag endpoints
+		wordTags := api.Group("/word-tags")
+		// All word tag operations require authentication
+		wordTags.Use(ws.authMiddleware.RequireAuth())
+		{
+			wordTags.POST("/mark", ws.apiMarkWordHandler)
+			wordTags.DELETE("/unmark", ws.apiUnmarkWordHandler)
+			wordTags.GET("/status/:wordId", ws.apiGetWordMarkStatusHandler)
+			wordTags.GET("/known", ws.apiGetKnownWordsHandler)
+			wordTags.GET("/progress", ws.apiGetUserProgressHandler)
+			wordTags.GET("/stats", ws.apiGetWordTagStatsHandler)
+			wordTags.POST("/forget-words", ws.apiForgetWordsHandler)
+			wordTags.POST("/forget-all", ws.apiForgetAllHandler)
 		}
 	}
 }
@@ -206,7 +223,6 @@ func (ws *WebServer) apiWordsHandler(c *gin.Context) {
 		Data: responseData,
 	})
 }
-
 
 // apiSearchHandler handles search requests using service layer
 func (ws *WebServer) apiSearchHandler(c *gin.Context) {
@@ -464,5 +480,290 @@ func (ws *WebServer) apiGetUserProfileHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse{
 		Code: 0,
 		Data: user,
+	})
+}
+
+// apiMarkWordHandler marks a word as known by a user
+func (ws *WebServer) apiMarkWordHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	var req dto.WordMarkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  "Invalid request format",
+		})
+		return
+	}
+
+	// Set user ID from context
+	req.UserID = userID
+
+	response, err := ws.wordTagService.MarkWordAsKnown(&req)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Str("word_id", req.WordID).Msg("Failed to mark word as known")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+		Msg:  response.Message,
+	})
+}
+
+// apiUnmarkWordHandler removes a user's mark from a word
+func (ws *WebServer) apiUnmarkWordHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	var req dto.WordMarkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  "Invalid request format",
+		})
+		return
+	}
+
+	// Set user ID from context
+	req.UserID = userID
+
+	response, err := ws.wordTagService.RemoveWordMark(&req)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Str("word_id", req.WordID).Msg("Failed to remove word mark")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+		Msg:  response.Message,
+	})
+}
+
+// apiGetWordMarkStatusHandler gets the mark status of a word for a user
+func (ws *WebServer) apiGetWordMarkStatusHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	wordID := c.Param("wordId")
+	if wordID == "" {
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  "Word ID is required",
+		})
+		return
+	}
+
+	status, err := ws.wordTagService.GetWordMarkStatus(wordID, userID)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Str("word_id", wordID).Msg("Failed to get word mark status")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: status,
+	})
+}
+
+// apiGetKnownWordsHandler gets known words for a user
+func (ws *WebServer) apiGetKnownWordsHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	baseList := &dao.BaseList{PageNum: 1, PageSize: 1000}
+	response, err := ws.vocabularyService.GetKnownWordsByUser(userID, baseList)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Msg("Failed to get known words")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+	})
+}
+
+// apiGetUserProgressHandler gets user's learning progress
+func (ws *WebServer) apiGetUserProgressHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	response, err := ws.wordTagService.GetUserProgress(userID)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Msg("Failed to get user progress")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+	})
+}
+
+// apiGetWordTagStatsHandler gets word tag statistics
+func (ws *WebServer) apiGetWordTagStatsHandler(c *gin.Context) {
+	// This endpoint doesn't require user authentication for general stats
+	// TODO: Re-enable proper authentication after testing if needed
+
+	response, err := ws.wordTagService.GetWordTagStats()
+	if err != nil {
+		log.Error(err).Msg("Failed to get word tag stats")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+	})
+}
+
+
+// apiForgetWordsHandler handles forgetting specific words
+func (ws *WebServer) apiForgetWordsHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	var req dto.ForgetWordsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  "Invalid request format",
+		})
+		return
+	}
+
+	log.Debug().Str("user_id", userID).Int("word_count", len(req.WordIDs)).Msg("Forget words request")
+
+	response, err := ws.wordTagService.ForgetWords(userID, &req)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Int("word_count", len(req.WordIDs)).Msg("Failed to forget words")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+		Msg:  response.Message,
+	})
+}
+
+// apiForgetAllHandler handles forgetting all words
+func (ws *WebServer) apiForgetAllHandler(c *gin.Context) {
+	// Get user ID from authentication middleware
+	userID, err := middleware.GetUserIDFromContext(c)
+	if err != nil {
+		log.Error(err).Msg("User not authenticated")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 401,
+			Msg:  "请先登录后再进行操作",
+		})
+		return
+	}
+
+	var req dto.ForgetAllRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  "Invalid request format",
+		})
+		return
+	}
+
+	log.Debug().Str("user_id", userID).Bool("confirm", req.Confirm).Msg("Forget all request")
+
+	response, err := ws.wordTagService.ForgetAllWords(userID, &req)
+	if err != nil {
+		log.Error(err).Str("user_id", userID).Msg("Failed to forget all words")
+		c.JSON(http.StatusOK, APIResponse{
+			Code: 150321309,
+			Msg:  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Code: 0,
+		Data: response,
+		Msg:  response.Message,
 	})
 }
