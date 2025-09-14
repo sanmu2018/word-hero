@@ -32,6 +32,15 @@ word-hero/
 ├── configs/words/         # Data files
 │   └── IELTS.xlsx        # Vocabulary data source
 ├── build/                 # Build artifacts
+├── test/                  # Test code and utilities
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   ├── e2e/              # End-to-end tests
+│   ├── mocks/            # Mock objects
+│   ├── data/             # Test data
+│   ├── fixtures/         # Test fixtures
+│   ├── testutils/        # Test utilities
+│   └── docs/             # Test documentation
 └── go.mod, go.sum        # Go module files
 ```
 
@@ -238,6 +247,15 @@ word-hero/
 - **configs/**: Configuration files (YAML, JSON, etc.)
 - **web/**: Web assets (templates, static files)
 - **build/**: Compiled binaries and build artifacts
+- **test/**: All test-related code and utilities
+  - **test/unit/**: Unit tests for individual components
+  - **test/integration/**: Integration tests for component interactions
+  - **test/e2e/**: End-to-end tests for complete workflows
+  - **test/mocks/**: Mock objects and test utilities
+  - **test/data/**: Test data and sample files
+  - **test/fixtures/**: Test fixtures and setup data
+  - **test/testutils/**: Shared test utilities
+  - **test/docs/**: Test documentation and reports
 
 #### Go Module Standards
 - **Module Naming**: Use repository URL for module name (e.g., `github.com/user/project`)
@@ -357,10 +375,106 @@ try {
 - Breaking changes require updated documentation
 
 ### Testing Standards
-- Write tests for critical functionality
-- Test both success and error scenarios
-- Maintain test coverage above 80%
-- Include integration tests for external dependencies
+
+#### Test Organization
+- **Unit Tests**: Place in `test/unit/<package>_test.go` - Test individual functions and methods in isolation
+- **Integration Tests**: Place in `test/integration/<feature>_test.go` - Test interactions between components
+- **End-to-End Tests**: Place in `test/e2e/<workflow>_test.go` - Test complete user workflows
+- **Mock Objects**: Place in `test/mocks/<component>_mock.go` - Implement test doubles for dependencies
+- **Test Data**: Place in `test/data/<category>/` - Store test data files and samples
+- **Test Fixtures**: Place in `test/fixtures/<test_name>/` - Store setup data for specific tests
+- **Test Utilities**: Place in `test/testutils/` - Shared testing utilities and helpers
+- **Test Documentation**: Place in `test/docs/` - Test plans, coverage reports, and testing guidelines
+
+#### Testing Requirements
+- **Minimum Coverage**: Maintain 80% code coverage across all packages
+- **Critical Components**: Core business logic and API endpoints require 90%+ coverage
+- **Test Categories**: Every feature must have unit tests, integration tests for external dependencies, and e2e tests for user workflows
+- **Error Scenarios**: Test both success and error paths comprehensively
+- **Edge Cases**: Include tests for boundary conditions and unusual inputs
+
+#### Testing Tools and Frameworks
+- **Standard Library**: Use Go's built-in `testing` package as the foundation
+- **Assertions**: Use `github.com/stretchr/testify` for readable test assertions
+- **Mocking**: Use `github.com/golang/mock` for generating and using mock objects
+- **HTTP Testing**: Use `net/http/httptest` for testing HTTP handlers
+- **Database Testing**: Use test databases or in-memory databases for integration tests
+- **Testcontainers**: Use Docker containers for integration testing with real dependencies
+
+#### Test Naming Conventions
+- **Test Files**: Use `*_test.go` suffix for all test files
+- **Test Functions**: Use `Test<FunctionName>` or `Test<Feature>_<Scenario>` format
+- **Benchmark Functions**: Use `Benchmark<FunctionName>` for performance tests
+- **Example Functions**: Use `Example<FunctionName>` for documentation examples
+- **Test Helpers**: Use private helper functions with `helper` suffix when appropriate
+
+#### Test Data Management
+- **Test Fixtures**: Create reusable test fixtures in `test/fixtures/` directory
+- **Dynamic Data**: Generate test data programmatically using helper functions
+- **Cleanup**: Always clean up test data and resources after test execution
+- **Isolation**: Ensure tests don't interfere with each other by using separate test databases
+- **Environment**: Use environment variables or configuration files to control test behavior
+
+#### Test Structure Standards
+```go
+// Good test structure example
+func TestVocabularyService_SearchWords(t *testing.T) {
+    // Setup
+    service := setupTestService(t)
+    defer cleanupTestData(t)
+
+    // Test cases
+    tests := []struct {
+        name     string
+        query    string
+        expected []string
+        wantErr  bool
+    }{
+        {
+            name:     "valid search",
+            query:    "hello",
+            expected: []string{"hello world"},
+            wantErr:  false,
+        },
+        {
+            name:     "empty query",
+            query:    "",
+            expected: nil,
+            wantErr:  true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Execute
+            result, err := service.SearchWords(tt.query)
+
+            // Assert
+            if tt.wantErr {
+                assert.Error(t, err)
+                return
+            }
+            assert.NoError(t, err)
+            assert.Equal(t, tt.expected, result)
+        })
+    }
+}
+```
+
+#### API Testing Standards
+- **Endpoint Coverage**: Test all API endpoints with various HTTP methods
+- **Response Format**: Verify that all responses follow the standardized `{code, data, msg}` format
+- **Error Handling**: Test error responses for different error codes and scenarios
+- **Authentication**: Test authenticated endpoints with valid and invalid tokens
+- **Request Validation**: Test input validation and parameter handling
+- **Performance**: Include basic performance tests for critical endpoints
+
+#### Continuous Testing
+- **Pre-commit Hooks**: Run tests before allowing commits
+- **CI/CD Pipeline**: Automate test execution in continuous integration
+- **Coverage Reports**: Generate and review coverage reports regularly
+- **Performance Regression**: Monitor test performance over time
+- **Test Maintenance**: Keep tests updated with code changes and requirements
 
 ### Environment Awareness Standards
 
