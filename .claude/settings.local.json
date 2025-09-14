@@ -29,7 +29,8 @@
       "Bash(tasklist:*)",
       "Bash(wmic:*)",
       "Bash(powershell:*)",
-      "Bash(.buildword-hero.exe)"
+      "Bash(.buildword-hero.exe)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []
