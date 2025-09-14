@@ -1440,7 +1440,7 @@ function markWordAsKnownWithAPI(word, wordId) {
         return;
     }
 
-    // Call API to mark word as known
+    // Call new API to mark word as known
     fetch('/api/word-tags/mark', {
         method: 'POST',
         headers: {
@@ -1459,7 +1459,6 @@ function markWordAsKnownWithAPI(word, wordId) {
             saveKnownWords();
             saveWordTimestamps();
             updateWordCardAppearance(word, true);
-            updateWordMarkStatus(wordId, true, data.data.markCount);
 
             // Update API known words cache
             if (!window.apiKnownWordIds) {
@@ -1488,7 +1487,7 @@ function markWordAsUnknownWithAPI(word, wordId) {
         return;
     }
 
-    // Call API to unmark word
+    // Call new API to unmark word
     fetch('/api/word-tags/unmark', {
         method: 'DELETE',
         headers: {
@@ -1507,7 +1506,6 @@ function markWordAsUnknownWithAPI(word, wordId) {
             saveKnownWords();
             saveWordTimestamps();
             updateWordCardAppearance(word, false);
-            updateWordMarkStatus(wordId, false, data.data.markCount);
 
             // Update API known words cache - remove the word ID
             if (window.apiKnownWordIds) {
@@ -1543,6 +1541,41 @@ function updateWordMarkStatus(wordId, isMarked, markCount) {
     // This function is kept for compatibility but does nothing
 }
 
+// New function to check word status using the new API
+function checkWordStatusWithAPI(wordId, callback) {
+    const token = getAuthToken();
+    if (!token) {
+        // If not logged in, use localStorage data
+        const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
+        callback(isKnown);
+        return;
+    }
+
+    // Call new API to check word status
+    fetch(`/api/word-tags/status?wordId=${encodeURIComponent(wordId)}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0 && data.data) {
+            callback(data.data.isKnown);
+        } else {
+            // Fallback to localStorage data
+            const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
+            callback(isKnown);
+        }
+    })
+    .catch(error => {
+        // Fallback to localStorage data
+        const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
+        callback(isKnown);
+    });
+}
+
 function getAuthToken() {
     return localStorage.getItem('authToken');
 }
@@ -1557,8 +1590,8 @@ function loadKnownWordsFromAPI() {
         return;
     }
 
-    // Try to load from API for accurate data
-    fetch('/api/word-tags/known', {
+    // Try to load from API for accurate data using new endpoint
+    fetch('/api/word-tags/known-words', {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -1673,7 +1706,7 @@ function resetCurrentPage() {
         return;
     }
 
-    // Call API to forget specific words
+    // Call new API to forget specific words
     fetch('/api/word-tags/forget-words', {
         method: 'POST',
         headers: {
@@ -1739,7 +1772,7 @@ function resetAllPages() {
 
     // Confirm before forgetting all words
     if (confirm('确定要忘光所有已认识的单词吗？这将清除所有单词的已认识标记。')) {
-        // Call API to forget all words
+        // Call new API to forget all words
         fetch('/api/word-tags/forget-all', {
             method: 'POST',
             headers: {
@@ -1756,7 +1789,9 @@ function resetAllPages() {
                 // Clear local caches
                 knownWords.clear();
                 wordTimestamps.clear();
-                window.apiKnownWordIds.clear();
+                if (window.apiKnownWordIds) {
+                    window.apiKnownWordIds.clear();
+                }
 
                 // Save to localStorage
                 saveKnownWords();

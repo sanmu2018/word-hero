@@ -16,6 +16,7 @@ import (
 	"github.com/sanmu2018/word-hero/internal/service"
 	"github.com/sanmu2018/word-hero/internal/table"
 	"github.com/sanmu2018/word-hero/log"
+	"github.com/sanmu2018/word-hero/pkg/pke"
 )
 
 // WebServer handles the web application with layered architecture
@@ -51,7 +52,7 @@ func NewWebServer(vocabularyService *service.VocabularyService, pagerService *se
 	}
 
 	// Add middleware
-	engine.Use(gin.Logger(), gin.Recovery(), ws.loggingMiddleware())
+	engine.Use(middleware.LoggerHandler, gin.Recovery(), ws.loggingMiddleware())
 
 	// Set up templates
 	templates := template.Must(template.ParseGlob(templateDir + "/*.html"))
@@ -82,11 +83,6 @@ type PageData struct {
 }
 
 // APIResponse represents the JSON response for API calls
-type APIResponse struct {
-	Code int         `json:"code"`
-	Data interface{} `json:"data,omitempty"`
-	Msg  string      `json:"msg,omitempty"`
-}
 
 // setupRoutes configures all routes for the Gin engine
 func (ws *WebServer) setupRoutes() {
@@ -97,26 +93,26 @@ func (ws *WebServer) setupRoutes() {
 	api := ws.engine.Group("/api")
 	{
 		// Public vocabulary endpoints
-		api.GET("/words", ws.apiWordsHandler)
-		api.GET("/search", ws.apiSearchHandler)
-		api.GET("/stats", ws.apiStatsHandler)
+		api.GET("/words", wrapper(ws.apiWordsHandler))
+		api.GET("/search", wrapper(ws.apiSearchHandler))
+		api.GET("/stats", wrapper(ws.apiStatsHandler))
 
 		// Authentication endpoints
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", ws.apiRegisterHandler)
-			auth.POST("/login", ws.apiLoginHandler)
-			auth.POST("/logout", ws.apiLogoutHandler)
-			auth.GET("/me", ws.authMiddleware.RequireAuth(), ws.apiGetCurrentUserHandler)
-			auth.PUT("/profile", ws.authMiddleware.RequireAuth(), ws.apiUpdateProfileHandler)
-			auth.POST("/change-password", ws.authMiddleware.RequireAuth(), ws.apiChangePasswordHandler)
+			auth.POST("/register", wrapper(ws.apiRegisterHandler))
+			auth.POST("/login", wrapper(ws.apiLoginHandler))
+			auth.POST("/logout", wrapper(ws.apiLogoutHandler))
+			auth.GET("/me", ws.authMiddleware.RequireAuth(), wrapper(ws.apiGetCurrentUserHandler))
+			auth.PUT("/profile", ws.authMiddleware.RequireAuth(), wrapper(ws.apiUpdateProfileHandler))
+			auth.POST("/change-password", ws.authMiddleware.RequireAuth(), wrapper(ws.apiChangePasswordHandler))
 		}
 
 		// Protected user endpoints
 		user := api.Group("/user")
 		user.Use(ws.authMiddleware.RequireAuth())
 		{
-			user.GET("/profile", ws.apiGetUserProfileHandler)
+			user.GET("/profile", wrapper(ws.apiGetUserProfileHandler))
 		}
 
 		// Word tag endpoints
@@ -124,14 +120,14 @@ func (ws *WebServer) setupRoutes() {
 		// All word tag operations require authentication
 		wordTags.Use(ws.authMiddleware.RequireAuth())
 		{
-			wordTags.POST("/mark", ws.apiMarkWordHandler)
-			wordTags.DELETE("/unmark", ws.apiUnmarkWordHandler)
-			wordTags.GET("/status/:wordId", ws.apiGetWordMarkStatusHandler)
-			wordTags.GET("/known", ws.apiGetKnownWordsHandler)
-			wordTags.GET("/progress", ws.apiGetUserProgressHandler)
-			wordTags.GET("/stats", ws.apiGetWordTagStatsHandler)
-			wordTags.POST("/forget-words", ws.apiForgetWordsHandler)
-			wordTags.POST("/forget-all", ws.apiForgetAllHandler)
+			wordTags.POST("/mark", wrapper(ws.apiMarkWordHandler))
+			wordTags.DELETE("/unmark", wrapper(ws.apiUnmarkWordHandler))
+			wordTags.GET("/status/:wordId", wrapper(ws.apiGetWordMarkStatusHandler))
+			wordTags.GET("/known", wrapper(ws.apiGetKnownWordsHandler))
+			wordTags.GET("/progress", wrapper(ws.apiGetUserProgressHandler))
+			wordTags.GET("/stats", wrapper(ws.apiGetWordTagStatsHandler))
+			wordTags.POST("/forget-words", wrapper(ws.apiForgetWordsHandler))
+			wordTags.POST("/forget-all", wrapper(ws.apiForgetAllHandler))
 		}
 	}
 }
@@ -187,7 +183,7 @@ func (ws *WebServer) homeHandler(c *gin.Context) {
 }
 
 // apiWordsHandler handles API requests for words with pagination
-func (ws *WebServer) apiWordsHandler(c *gin.Context) {
+func (ws *WebServer) apiWordsHandler(c *gin.Context) (interface{}, error) {
 	// Get pagination parameters
 	page := 1
 	pageSize := 12 // Default page size
@@ -210,30 +206,19 @@ func (ws *WebServer) apiWordsHandler(c *gin.Context) {
 	responseData, err := ws.pagerService.GetPageData(page, pageSize)
 	if err != nil {
 		log.Error(err).Int("page", page).Msg("Failed to get page data for API")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	// Return page data with the requested page size
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: responseData,
-	})
+	return responseData, nil
 }
 
 // apiSearchHandler handles search requests using service layer
-func (ws *WebServer) apiSearchHandler(c *gin.Context) {
+func (ws *WebServer) apiSearchHandler(c *gin.Context) (interface{}, error) {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {
 		log.Warn().Msg("Search query is empty")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Search query is required",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("query", query).Msg("Search request")
@@ -242,27 +227,20 @@ func (ws *WebServer) apiSearchHandler(c *gin.Context) {
 	results, err := ws.vocabularyService.SearchWords(query)
 	if err != nil {
 		log.Error(err).Str("query", query).Msg("Search failed")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: map[string]interface{}{
-			"query":   query,
-			"results": results,
-			"count":   len(results),
-		},
-	})
+	return map[string]interface{}{
+		"query":   query,
+		"results": results,
+		"count":   len(results),
+	}, nil
 }
 
 // apiStatsHandler handles statistics requests using service layer
-func (ws *WebServer) apiStatsHandler(c *gin.Context) {
+func (ws *WebServer) apiStatsHandler(c *gin.Context) (interface{}, error) {
 	// Get stats from service layer
 	stats := ws.vocabularyService.GetStats()
 
@@ -271,21 +249,14 @@ func (ws *WebServer) apiStatsHandler(c *gin.Context) {
 	stats["totalPages"] = ws.pagerService.GetTotalPages(defaultPageSize)
 	stats["pageSize"] = defaultPageSize
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: stats,
-	})
+	return stats, nil
 }
 
 // apiRegisterHandler handles user registration
-func (ws *WebServer) apiRegisterHandler(c *gin.Context) {
+func (ws *WebServer) apiRegisterHandler(c *gin.Context) (interface{}, error) {
 	var req dto.UserRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("username", req.Username).Str("email", req.Email).Msg("Registration request")
@@ -293,34 +264,22 @@ func (ws *WebServer) apiRegisterHandler(c *gin.Context) {
 	user, token, err := ws.authService.Register(&req)
 	if err != nil {
 		log.Error(err).Str("username", req.Username).Msg("Registration failed")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	log.Info().Str("user_id", user.ID).Str("username", user.Username).Msg("User registered successfully")
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: map[string]interface{}{
-			"user":  models.NewUserBusiness(user).ToResponse(),
-			"token": token,
-		},
-		Msg: "Registration successful",
-	})
+	return map[string]interface{}{
+		"user":  models.NewUserBusiness(user).ToResponse(),
+		"token": token,
+	}, nil
 }
 
 // apiLoginHandler handles user login
-func (ws *WebServer) apiLoginHandler(c *gin.Context) {
+func (ws *WebServer) apiLoginHandler(c *gin.Context) (interface{}, error) {
 	var req dto.UserLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("username", req.Username).Msg("Login request")
@@ -328,70 +287,44 @@ func (ws *WebServer) apiLoginHandler(c *gin.Context) {
 	user, token, err := ws.authService.Login(&req)
 	if err != nil {
 		log.Error(err).Str("username", req.Username).Msg("Login failed")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	log.Info().Str("user_id", user.ID).Str("username", user.Username).Msg("User logged in successfully")
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: map[string]interface{}{
-			"user":  models.NewUserBusiness(user).ToResponse(),
-			"token": token,
-		},
-		Msg: "Login successful",
-	})
+	return map[string]interface{}{
+		"user":  models.NewUserBusiness(user).ToResponse(),
+		"token": token,
+	}, nil
 }
 
 // apiLogoutHandler handles user logout
-func (ws *WebServer) apiLogoutHandler(c *gin.Context) {
+func (ws *WebServer) apiLogoutHandler(c *gin.Context) (interface{}, error) {
 	// For JWT, logout is typically handled client-side by token removal
 	// Server-side logout could involve token blacklisting if needed
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Msg:  "Logout successful",
-	})
+	return "Logout successful", nil
 }
 
 // apiGetCurrentUserHandler gets the current authenticated user
-func (ws *WebServer) apiGetCurrentUserHandler(c *gin.Context) {
+func (ws *WebServer) apiGetCurrentUserHandler(c *gin.Context) (interface{}, error) {
 	user, err := middleware.GetUserFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "User not found",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUserNotFound)
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: models.NewUserBusiness(user).ToResponse(),
-	})
+	return models.NewUserBusiness(user).ToResponse(), nil
 }
 
 // apiUpdateProfileHandler updates user profile
-func (ws *WebServer) apiUpdateProfileHandler(c *gin.Context) {
+func (ws *WebServer) apiUpdateProfileHandler(c *gin.Context) (interface{}, error) {
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "User not authenticated",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.UserUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("user_id", userID).Msg("Profile update request")
@@ -399,70 +332,43 @@ func (ws *WebServer) apiUpdateProfileHandler(c *gin.Context) {
 	user, err := ws.userService.UpdateUserProfile(userID, &req)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Profile update failed")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	log.Info().Str("user_id", userID).Msg("User profile updated successfully")
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: user,
-		Msg:  "Profile updated successfully",
-	})
+	return user, nil
 }
 
 // apiChangePasswordHandler handles password change
-func (ws *WebServer) apiChangePasswordHandler(c *gin.Context) {
+func (ws *WebServer) apiChangePasswordHandler(c *gin.Context) (interface{}, error) {
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "User not authenticated",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("user_id", userID).Msg("Password change request")
 
 	if err := ws.authService.ChangePassword(userID, &req); err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Password change failed")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	log.Info().Str("user_id", userID).Msg("User password changed successfully")
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Msg:  "Password changed successfully",
-	})
+	return "Password changed successfully", nil
 }
 
 // apiGetUserProfileHandler gets user profile
-func (ws *WebServer) apiGetUserProfileHandler(c *gin.Context) {
+func (ws *WebServer) apiGetUserProfileHandler(c *gin.Context) (interface{}, error) {
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "User not authenticated",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	log.Debug().Str("user_id", userID).Msg("Profile request")
@@ -470,39 +376,24 @@ func (ws *WebServer) apiGetUserProfileHandler(c *gin.Context) {
 	user, err := ws.userService.GetUserProfile(userID)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Failed to get user profile")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: user,
-	})
+	return user, nil
 }
 
 // apiMarkWordHandler marks a word as known by a user
-func (ws *WebServer) apiMarkWordHandler(c *gin.Context) {
+func (ws *WebServer) apiMarkWordHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.WordMarkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	// Set user ID from context
@@ -511,40 +402,24 @@ func (ws *WebServer) apiMarkWordHandler(c *gin.Context) {
 	response, err := ws.wordTagService.MarkWordAsKnown(&req)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Str("word_id", req.WordID).Msg("Failed to mark word as known")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-		Msg:  response.Message,
-	})
+	return response, nil
 }
 
 // apiUnmarkWordHandler removes a user's mark from a word
-func (ws *WebServer) apiUnmarkWordHandler(c *gin.Context) {
+func (ws *WebServer) apiUnmarkWordHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.WordMarkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	// Set user ID from context
@@ -553,159 +428,98 @@ func (ws *WebServer) apiUnmarkWordHandler(c *gin.Context) {
 	response, err := ws.wordTagService.RemoveWordMark(&req)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Str("word_id", req.WordID).Msg("Failed to remove word mark")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-		Msg:  response.Message,
-	})
+	return response, nil
 }
 
 // apiGetWordMarkStatusHandler gets the mark status of a word for a user
-func (ws *WebServer) apiGetWordMarkStatusHandler(c *gin.Context) {
+func (ws *WebServer) apiGetWordMarkStatusHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	wordID := c.Param("wordId")
 	if wordID == "" {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Word ID is required",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	status, err := ws.wordTagService.GetWordMarkStatus(wordID, userID)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Str("word_id", wordID).Msg("Failed to get word mark status")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: status,
-	})
+	return status, nil
 }
 
 // apiGetKnownWordsHandler gets known words for a user
-func (ws *WebServer) apiGetKnownWordsHandler(c *gin.Context) {
+func (ws *WebServer) apiGetKnownWordsHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	baseList := &dao.BaseList{PageNum: 1, PageSize: 1000}
 	response, err := ws.vocabularyService.GetKnownWordsByUser(userID, baseList)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Failed to get known words")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-	})
+	return response, nil
 }
 
 // apiGetUserProgressHandler gets user's learning progress
-func (ws *WebServer) apiGetUserProgressHandler(c *gin.Context) {
+func (ws *WebServer) apiGetUserProgressHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	response, err := ws.wordTagService.GetUserProgress(userID)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Failed to get user progress")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-	})
+	return response, nil
 }
 
 // apiGetWordTagStatsHandler gets word tag statistics
-func (ws *WebServer) apiGetWordTagStatsHandler(c *gin.Context) {
+func (ws *WebServer) apiGetWordTagStatsHandler(c *gin.Context) (interface{}, error) {
 	// This endpoint doesn't require user authentication for general stats
 	// TODO: Re-enable proper authentication after testing if needed
 
 	response, err := ws.wordTagService.GetWordTagStats()
 	if err != nil {
 		log.Error(err).Msg("Failed to get word tag stats")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-	})
+	return response, nil
 }
 
-
 // apiForgetWordsHandler handles forgetting specific words
-func (ws *WebServer) apiForgetWordsHandler(c *gin.Context) {
+func (ws *WebServer) apiForgetWordsHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.ForgetWordsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("user_id", userID).Int("word_count", len(req.WordIDs)).Msg("Forget words request")
@@ -713,40 +527,24 @@ func (ws *WebServer) apiForgetWordsHandler(c *gin.Context) {
 	response, err := ws.wordTagService.ForgetWords(userID, &req)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Int("word_count", len(req.WordIDs)).Msg("Failed to forget words")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-		Msg:  response.Message,
-	})
+	return response, nil
 }
 
 // apiForgetAllHandler handles forgetting all words
-func (ws *WebServer) apiForgetAllHandler(c *gin.Context) {
+func (ws *WebServer) apiForgetAllHandler(c *gin.Context) (interface{}, error) {
 	// Get user ID from authentication middleware
 	userID, err := middleware.GetUserIDFromContext(c)
 	if err != nil {
 		log.Error(err).Msg("User not authenticated")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 401,
-			Msg:  "请先登录后再进行操作",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
 	var req dto.ForgetAllRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  "Invalid request format",
-		})
-		return
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
 	log.Debug().Str("user_id", userID).Bool("confirm", req.Confirm).Msg("Forget all request")
@@ -754,16 +552,8 @@ func (ws *WebServer) apiForgetAllHandler(c *gin.Context) {
 	response, err := ws.wordTagService.ForgetAllWords(userID, &req)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Failed to forget all words")
-		c.JSON(http.StatusOK, APIResponse{
-			Code: 150321309,
-			Msg:  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
-		Code: 0,
-		Data: response,
-		Msg:  response.Message,
-	})
+	return response, nil
 }

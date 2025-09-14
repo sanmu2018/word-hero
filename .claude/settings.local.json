@@ -30,7 +30,8 @@
       "Bash(wmic:*)",
       "Bash(powershell:*)",
       "Bash(.buildword-hero.exe)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(go test:*)"
     ],
     "deny": [],
     "ask": []
