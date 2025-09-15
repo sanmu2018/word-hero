@@ -466,6 +466,32 @@ func (ws *WebServer) apiGetKnownWordsHandler(c *gin.Context) (interface{}, error
 		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
+	// Check if specific word IDs are provided
+	wordIdsStr := c.Query("wordIds")
+	if wordIdsStr != "" {
+		// Parse word IDs from query parameter
+		var wordIds []string
+		err := c.ShouldBindQuery(&struct {
+			WordIds []string `form:"wordIds"`
+		}{
+			WordIds: strings.Split(wordIdsStr, ","),
+		})
+		if err != nil {
+			log.Error(err).Str("word_ids", wordIdsStr).Msg("Failed to parse word IDs")
+			return nil, pke.NewApiError(pke.CodeInvalidRequest)
+		}
+
+		// Get mark status for specific words
+		response, err := ws.wordTagService.GetBatchWordMarkStatus(userID, wordIds)
+		if err != nil {
+			log.Error(err).Str("user_id", userID).Strs("word_ids", wordIds).Msg("Failed to get batch word mark status")
+			return nil, err
+		}
+
+		return response, nil
+	}
+
+	// If no word IDs provided, return all known words (backward compatibility)
 	baseList := &dao.BaseList{PageNum: 1, PageSize: 1000}
 	response, err := ws.vocabularyService.GetKnownWordsByUser(userID, baseList)
 	if err != nil {

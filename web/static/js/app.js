@@ -10,6 +10,7 @@ let selectedAccent = 'uk'; // Default to UK accent
 let knownWords = new Set(); // Track known words
 let wordTimestamps = new Map(); // Track word marking timestamps
 let originalWordOrder = []; // Store original word order for restore functionality
+let pendingMarkRequests = new Set(); // Track pending API mark requests to prevent duplicates
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -256,8 +257,14 @@ function updatePageContent(data) {
     // Apply current visibility settings to new content
     applyVisibilitySettings();
 
-    // Update known words status from API
-    updateKnownWordsStatus();
+    // Load known words status for current page words from API
+    const currentPageWordIds = data.items.map(word => word.id).filter(id => id);
+    if (currentPageWordIds.length > 0) {
+        loadKnownWordsFromAPI(currentPageWordIds);
+    } else {
+        // Update known words status from existing API data
+        updateKnownWordsStatus();
+    }
 }
 
 function createVocabularyCard(word, displayNumber) {
@@ -282,7 +289,7 @@ function createVocabularyCard(word, displayNumber) {
     // Process Chinese translation
     const chineseTranslation = processTranslation(chinese);
 
-    const isKnown = knownWords.has(english) || (window.apiKnownWordIds && word.id && window.apiKnownWordIds.has(word.id));
+    const isKnown = isWordKnownFromAPI(word.id, english) || knownWords.has(english);
 
     card.innerHTML = `
         <button class="action-btn" onclick="toggleWordMenu(event, '${escapeJsString(english)}')" title="更多操作">
@@ -1219,13 +1226,8 @@ function updateInlineMenuButtons(card, word) {
     const knownAction = card.querySelector('.known-action');
     const unknownAction = card.querySelector('.unknown-action');
 
-    // Check if word is known using either local knownWords set or API word IDs
-    let isKnown = knownWords.has(word);
-
-    // Also check against API known word IDs if available
-    if (!isKnown && window.apiKnownWordIds && card.dataset.wordId) {
-        isKnown = window.apiKnownWordIds.has(card.dataset.wordId);
-    }
+    // Check if word is known using API data or fallback to local storage
+    let isKnown = isWordKnownFromAPI(card.dataset.wordId, word) || knownWords.has(word);
 
     if (knownAction) {
         knownAction.style.display = isKnown ? 'none' : 'block';
@@ -1239,13 +1241,8 @@ function updateActionModalButtons(word) {
     const knownBtn = document.querySelector('.known-btn');
     const unknownBtn = document.querySelector('.unknown-btn');
 
-    // Check if word is known using either local knownWords set or API word IDs
-    let isKnown = knownWords.has(word);
-
-    // Also check against API known word IDs if available and we have a current action word ID
-    if (!isKnown && window.apiKnownWordIds && currentActionWordId) {
-        isKnown = window.apiKnownWordIds.has(currentActionWordId);
-    }
+    // Check if word is known using API data or fallback to local storage
+    let isKnown = isWordKnownFromAPI(currentActionWordId, word) || knownWords.has(word);
 
     if (isKnown) {
         knownBtn.style.display = 'none';
@@ -1257,29 +1254,32 @@ function updateActionModalButtons(word) {
 }
 
 function markCurrentWordAsKnown() {
+    let wordToMark = null;
+    let wordIdToMark = null;
 
     // Try to get word from selected card first
     if (selectedCard) {
-        const word = selectedCard.getAttribute('data-word');
-        const wordId = selectedCard.getAttribute('data-word-id');
-
-        if (word && wordId) {
-            // Use the new API-based marking function
-            markWordAsKnownWithAPI(word, wordId);
-            return;
-        } else if (word) {
-            // Fallback to localStorage if no word ID
-            markWordAsKnown(word);
-            return;
-        }
+        wordToMark = selectedCard.getAttribute('data-word');
+        wordIdToMark = selectedCard.getAttribute('data-word-id');
     }
 
-    // Fallback to action modal context
-    if (currentActionWord && currentActionWordId) {
-        markWordAsKnownWithAPI(currentActionWord, currentActionWordId);
-        closeWordActionModal();
-    } else if (currentActionWord) {
-        markWordAsKnown(currentActionWord);
+    // If no selected card, fall back to action modal context
+    if (!wordToMark && currentActionWord) {
+        wordToMark = currentActionWord;
+        wordIdToMark = currentActionWordId;
+    }
+
+    // Execute the marking operation
+    if (wordToMark && wordIdToMark) {
+        // Use the new API-based marking function
+        markWordAsKnownWithAPI(wordToMark, wordIdToMark);
+        // The modal will be closed by the API function after success
+    } else if (wordToMark) {
+        // Fallback to localStorage if no word ID
+        markWordAsKnown(wordToMark);
+        // Update modal buttons to reflect the new state
+        updateActionModalButtons(wordToMark);
+        // Close the modal after successful operation
         closeWordActionModal();
     } else {
         showToast('请先选择一个单词', 'error');
@@ -1287,28 +1287,32 @@ function markCurrentWordAsKnown() {
 }
 
 function markCurrentWordAsUnknown() {
+    let wordToMark = null;
+    let wordIdToMark = null;
+
     // Try to get word from selected card first
     if (selectedCard) {
-        const word = selectedCard.getAttribute('data-word');
-        const wordId = selectedCard.getAttribute('data-word-id');
-
-        if (word && wordId) {
-            // Use the new API-based marking function
-            markWordAsUnknownWithAPI(word, wordId);
-            return;
-        } else if (word) {
-            // Fallback to localStorage if no word ID
-            markWordAsUnknown(word);
-            return;
-        }
+        wordToMark = selectedCard.getAttribute('data-word');
+        wordIdToMark = selectedCard.getAttribute('data-word-id');
     }
 
-    // Fallback to action modal context
-    if (currentActionWord && currentActionWordId) {
-        markWordAsUnknownWithAPI(currentActionWord, currentActionWordId);
-        closeWordActionModal();
-    } else if (currentActionWord) {
-        markWordAsUnknown(currentActionWord);
+    // If no selected card, fall back to action modal context
+    if (!wordToMark && currentActionWord) {
+        wordToMark = currentActionWord;
+        wordIdToMark = currentActionWordId;
+    }
+
+    // Execute the marking operation
+    if (wordToMark && wordIdToMark) {
+        // Use the new API-based marking function
+        markWordAsUnknownWithAPI(wordToMark, wordIdToMark);
+        // The modal will be closed by the API function after success
+    } else if (wordToMark) {
+        // Fallback to localStorage if no word ID
+        markWordAsUnknown(wordToMark);
+        // Update modal buttons to reflect the new state
+        updateActionModalButtons(wordToMark);
+        // Close the modal after successful operation
         closeWordActionModal();
     } else {
         showToast('请先选择一个单词', 'error');
@@ -1433,12 +1437,22 @@ function markWordAsUnknown(word) {
 }
 
 function markWordAsKnownWithAPI(word, wordId) {
+    // Check if there's already a pending request for this word
+    const requestKey = `known-${wordId}`;
+    if (pendingMarkRequests.has(requestKey)) {
+        console.log(`Already pending request for ${word}, skipping duplicate`);
+        return;
+    }
+
     const token = getAuthToken();
     if (!token) {
         showToast('请先登录后再进行操作', 'error');
         setTimeout(() => showLoginModal(), 1000);
         return;
     }
+
+    // Mark this request as pending
+    pendingMarkRequests.add(requestKey);
 
     // Call new API to mark word as known
     fetch('/api/word-tags/mark', {
@@ -1453,6 +1467,9 @@ function markWordAsKnownWithAPI(word, wordId) {
     })
     .then(response => response.json())
     .then(data => {
+        // Remove from pending requests
+        pendingMarkRequests.delete(requestKey);
+
         if (data.code === 0) {
             knownWords.add(word);
             wordTimestamps.set(word, new Date().toISOString());
@@ -1466,7 +1483,13 @@ function markWordAsKnownWithAPI(word, wordId) {
             }
             window.apiKnownWordIds.add(wordId);
 
+            // Update modal buttons to reflect the new state
+            updateActionModalButtons(word);
+
             showToast(`"${word}" 已标记为认识`, 'success');
+
+            // Close the modal after successful operation
+            closeWordActionModal();
         } else if (data.code === 401) {
             showToast('请先登录后再进行操作', 'error');
             setTimeout(() => showLoginModal(), 1000);
@@ -1475,17 +1498,29 @@ function markWordAsKnownWithAPI(word, wordId) {
         }
     })
     .catch(error => {
+        // Remove from pending requests even on error
+        pendingMarkRequests.delete(requestKey);
         showToast('网络错误，请重试', 'error');
     });
 }
 
 function markWordAsUnknownWithAPI(word, wordId) {
+    // Check if there's already a pending request for this word
+    const requestKey = `unknown-${wordId}`;
+    if (pendingMarkRequests.has(requestKey)) {
+        console.log(`Already pending request for ${word}, skipping duplicate`);
+        return;
+    }
+
     const token = getAuthToken();
     if (!token) {
         showToast('请先登录后再进行操作', 'error');
         setTimeout(() => showLoginModal(), 1000);
         return;
     }
+
+    // Mark this request as pending
+    pendingMarkRequests.add(requestKey);
 
     // Call new API to unmark word
     fetch('/api/word-tags/unmark', {
@@ -1500,6 +1535,9 @@ function markWordAsUnknownWithAPI(word, wordId) {
     })
     .then(response => response.json())
     .then(data => {
+        // Remove from pending requests
+        pendingMarkRequests.delete(requestKey);
+
         if (data.code === 0) {
             knownWords.delete(word);
             wordTimestamps.delete(word);
@@ -1512,7 +1550,13 @@ function markWordAsUnknownWithAPI(word, wordId) {
                 window.apiKnownWordIds.delete(wordId);
             }
 
+            // Update modal buttons to reflect the new state
+            updateActionModalButtons(word);
+
             showToast(`"${word}" 已标记为不认识`, 'info');
+
+            // Close the modal after successful operation
+            closeWordActionModal();
         } else if (data.code === 401) {
             showToast('请先登录后再进行操作', 'error');
             setTimeout(() => showLoginModal(), 1000);
@@ -1521,6 +1565,8 @@ function markWordAsUnknownWithAPI(word, wordId) {
         }
     })
     .catch(error => {
+        // Remove from pending requests even on error
+        pendingMarkRequests.delete(requestKey);
         showToast('网络错误，请重试', 'error');
     });
 }
@@ -1543,44 +1589,16 @@ function updateWordMarkStatus(wordId, isMarked, markCount) {
 
 // New function to check word status using the new API
 function checkWordStatusWithAPI(wordId, callback) {
-    const token = getAuthToken();
-    if (!token) {
-        // If not logged in, use localStorage data
-        const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
-        callback(isKnown);
-        return;
-    }
-
-    // Call new API to check word status
-    fetch(`/api/word-tags/status?wordId=${encodeURIComponent(wordId)}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.code === 0 && data.data) {
-            callback(data.data.isKnown);
-        } else {
-            // Fallback to localStorage data
-            const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
-            callback(isKnown);
-        }
-    })
-    .catch(error => {
-        // Fallback to localStorage data
-        const isKnown = knownWords.has(wordId) || (window.apiKnownWordIds && window.apiKnownWordIds.has(wordId));
-        callback(isKnown);
-    });
+    // Use the new API-based function that handles all fallback logic
+    const isKnown = isWordKnownFromAPI(wordId);
+    callback(isKnown);
 }
 
 function getAuthToken() {
     return localStorage.getItem('authToken');
 }
 
-function loadKnownWordsFromAPI() {
+function loadKnownWordsFromAPI(wordIds = null) {
     // Load from localStorage first for immediate feedback
     loadKnownWords();
 
@@ -1590,8 +1608,14 @@ function loadKnownWordsFromAPI() {
         return;
     }
 
+    // Build URL with word IDs if provided
+    let url = '/api/word-tags/known';
+    if (wordIds && wordIds.length > 0) {
+        url += '?wordIds=' + wordIds.join(',');
+    }
+
     // Try to load from API for accurate data using new endpoint
-    fetch('/api/word-tags/known-words', {
+    fetch(url, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -1600,9 +1624,25 @@ function loadKnownWordsFromAPI() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.code === 0 && data.data && data.data.wordIds) {
-            // Store known word IDs from API
-            window.apiKnownWordIds = new Set(data.data.wordIds);
+        if (data.code === 0 && data.data) {
+            if (data.data.wordIds) {
+                // Store known word IDs from API (backward compatibility)
+                window.apiKnownWordIds = new Set(data.data.wordIds);
+            } else if (data.data.wordMarkStatuses) {
+                // Store known word IDs from batch response
+                window.apiKnownWordIds = new Set();
+                data.data.wordMarkStatuses.forEach(status => {
+                    if (status.isMarked) {
+                        window.apiKnownWordIds.add(status.wordId);
+                    }
+                });
+
+                // Store individual word status for quick lookup
+                window.apiWordMarkStatuses = new Map();
+                data.data.wordMarkStatuses.forEach(status => {
+                    window.apiWordMarkStatuses.set(status.wordId, status);
+                });
+            }
 
             // Update the UI based on API data
             updateKnownWordsStatus();
@@ -1614,6 +1654,35 @@ function loadKnownWordsFromAPI() {
     .catch(error => {
         // Continue with localStorage data
     });
+}
+
+// Check if a specific word is known using API data
+function isWordKnownFromAPI(wordId, englishWord = null) {
+    // Check cached API data first
+    if (wordId && window.apiWordMarkStatuses && window.apiWordMarkStatuses.has(wordId)) {
+        return window.apiWordMarkStatuses.get(wordId).isMarked;
+    }
+
+    // Fall back to known word IDs set
+    if (wordId && window.apiKnownWordIds) {
+        return window.apiKnownWordIds.has(wordId);
+    }
+
+    // Fall back to localStorage using English word
+    if (englishWord) {
+        return knownWords.has(englishWord);
+    }
+
+    // If no English word provided, try to find the word by ID from current cards
+    if (wordId) {
+        const card = document.querySelector(`[data-word-id="${wordId}"]`);
+        if (card) {
+            const englishWord = card.getAttribute('data-word');
+            return knownWords.has(englishWord);
+        }
+    }
+
+    return false;
 }
 
 // Update known words status on the current page
@@ -1724,7 +1793,8 @@ function resetCurrentPage() {
             const currentCards = document.querySelectorAll('.vocabulary-card');
             currentCards.forEach(card => {
                 const word = card.getAttribute('data-word');
-                if (word && knownWords.has(word)) {
+                const wordId = card.dataset.wordId;
+                if (word && (knownWords.has(word) || isWordKnownFromAPI(wordId, word))) {
                     knownWords.delete(word);
                     wordTimestamps.delete(word);
                     card.classList.remove('known-word');
@@ -1825,7 +1895,8 @@ function showWordDetail(word) {
     // Find the word data
     const card = document.querySelector(`.vocabulary-card[data-word="${word}"]`);
     const chineseText = card ? card.querySelector('.translation-text').textContent : '';
-    const isKnown = knownWords.has(word);
+    const wordId = card ? card.dataset.wordId : null;
+    const isKnown = isWordKnownFromAPI(wordId, word) || knownWords.has(word);
     
     title.textContent = '单词详情';
     content.innerHTML = `

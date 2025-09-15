@@ -147,6 +147,59 @@ func (s *WordTagService) GetWordMarkStatus(wordID, userID string) (*dto.WordMark
 	}, nil
 }
 
+// GetBatchWordMarkStatus gets mark status for multiple words
+func (s *WordTagService) GetBatchWordMarkStatus(userID string, wordIDs []string) (*dto.WordMarkStatusResponse, error) {
+	// Check if user exists
+	if _, err := s.userDAO.FindByID(userID); err != nil {
+		log.Error(err).Str("user_id", userID).Msg("Failed to find user")
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Get mark status for all words
+	wordMarkStatuses := make([]dto.WordMarkStatus, 0, len(wordIDs))
+
+	for _, wordID := range wordIDs {
+		// Check if word exists
+		if _, err := s.wordDAO.GetByID(wordID); err != nil {
+			log.Warn().Str("word_id", wordID).Msg("Word not found, skipping")
+			continue
+		}
+
+		// Check mark status
+		isMarked, err := s.wordTagDAO.IsWordMarkedAsKnown(wordID, userID)
+		if err != nil {
+			log.Error(err).Str("word_id", wordID).Str("user_id", userID).Msg("Failed to check word mark status")
+			continue
+		}
+
+		var markedAt int64
+		if isMarked {
+			// Get the mark timestamp
+			wordTag, err := s.wordTagDAO.GetByWordIDAndUserID(wordID, userID)
+			if err == nil {
+				markedAt = wordTag.GetKnownTimestamp()
+			}
+		}
+
+		wordMarkStatuses = append(wordMarkStatuses, dto.WordMarkStatus{
+			WordID:   wordID,
+			IsMarked: isMarked,
+			MarkCount: func() int {
+				if isMarked {
+					return 1
+				} else {
+					return 0
+				}
+			}(),
+			MarkedAt: markedAt,
+		})
+	}
+
+	return &dto.WordMarkStatusResponse{
+		WordMarkStatuses: wordMarkStatuses,
+	}, nil
+}
+
 // GetUserProgress returns user's learning progress
 func (s *WordTagService) GetUserProgress(userID string) (*dto.UserProgressResponse, error) {
 	// Validate user exists

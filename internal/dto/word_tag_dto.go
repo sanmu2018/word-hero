@@ -43,6 +43,16 @@ type KnownWordsResponse struct {
 	TotalCount int64    `json:"totalCount"`
 }
 
+// WordMarkStatusRequest represents a request to get mark status for specific words
+type WordMarkStatusRequest struct {
+	WordIDs []string `json:"wordIds" binding:"required,min=1"`
+}
+
+// WordMarkStatusResponse represents a response for word mark status
+type WordMarkStatusResponse struct {
+	WordMarkStatuses []WordMarkStatus `json:"wordMarkStatuses"`
+}
+
 // WordMarkStatus represents the mark status of a word for a user
 type WordMarkStatus struct {
 	WordID    string `json:"wordId"`
