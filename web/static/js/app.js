@@ -11,6 +11,7 @@ let knownWords = new Set(); // Track known words
 let wordTimestamps = new Map(); // Track word marking timestamps
 let originalWordOrder = []; // Store original word order for restore functionality
 let pendingMarkRequests = new Set(); // Track pending API mark requests to prevent duplicates
+let speechSynthesisResetTimeout = null; // Track speech synthesis reset timeout
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -23,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Voices loaded
         };
     }
-    
+
     initializeApp();
 });
 
@@ -1034,24 +1035,30 @@ function selectCard(card) {
 
 // Text-to-speech function using browser speech synthesis
 function speakWord(word, button) {
+    // Cancel any scheduled reset
+    if (speechSynthesisResetTimeout) {
+        clearTimeout(speechSynthesisResetTimeout);
+        speechSynthesisResetTimeout = null;
+    }
+
     // Toggle speaking state
     if (button.classList.contains('speaking')) {
         // Stop speaking
         stopSpeech(button);
         return;
     }
-    
+
     // Check if browser supports speech synthesis
     if (!('speechSynthesis' in window)) {
         showError('您的浏览器不支持语音播放功能');
         return;
     }
-    
+
     // Show speaking state
     button.classList.add('speaking');
     button.innerHTML = '<i class="fas fa-stop"></i>';
     button.title = '停止播放';
-    
+
     // Speak the word
     speakWordBrowser(word, button);
 }
@@ -1073,81 +1080,203 @@ function resetButtonState(button) {
     button.classList.remove('speaking');
     button.innerHTML = '<i class="fas fa-volume-up"></i>';
     button.title = '播放发音';
+
+    // Schedule a global reset after speech completion
+    scheduleSpeechSynthesisReset();
+}
+
+// Global speech synthesis reset function
+function resetSpeechSynthesis() {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+
+        // Reset all speaking buttons
+        const speakingButtons = document.querySelectorAll('.speaker-btn.speaking');
+        speakingButtons.forEach(button => {
+            resetButtonState(button);
+        });
+
+        // Clear any pending reset timeout
+        if (speechSynthesisResetTimeout) {
+            clearTimeout(speechSynthesisResetTimeout);
+            speechSynthesisResetTimeout = null;
+        }
+    }
+}
+
+// Schedule a speech synthesis reset
+function scheduleSpeechSynthesisReset() {
+    if (speechSynthesisResetTimeout) {
+        clearTimeout(speechSynthesisResetTimeout);
+    }
+
+    speechSynthesisResetTimeout = setTimeout(() => {
+        resetSpeechSynthesis();
+    }, 15000); // Reset after 15 seconds of inactivity
 }
 
 // Speak word using browser speech synthesis
 function speakWordBrowser(word, button) {
+    // Check if speech synthesis is stuck
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        resetButtonState(button);
+
+        // Add a small delay before trying again
+        setTimeout(() => {
+            proceedWithSpeechSynthesis(word, button);
+        }, 200);
+        return;
+    }
+
     // Cancel any existing speech first
     window.speechSynthesis.cancel();
 
-    // Small delay to ensure cancellation
-    setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(word);
+    // Check if we have any voices available
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+        // Try to reload voices
+        window.speechSynthesis.getVoices();
+        setTimeout(() => {
+            const reloadedVoices = window.speechSynthesis.getVoices();
+            if (reloadedVoices.length === 0) {
+                showError('语音功能正在初始化，请稍后再试');
+                resetButtonState(button);
+                return;
+            }
+            // Proceed with speech synthesis after reload
+            proceedWithSpeechSynthesis(word, button);
+        }, 500);
+        return;
+    }
 
-        // Configure speech settings
-        utterance.rate = 0.8;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-        utterance.lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+    proceedWithSpeechSynthesis(word, button);
+}
 
-        // Get voices and try to find a good one
-        const voices = window.speechSynthesis.getVoices();
-        let selectedVoice = null;
+function proceedWithSpeechSynthesis(word, button) {
+    const utterance = new SpeechSynthesisUtterance(word);
 
-        // Try to find a voice matching the selected accent
+    // Configure speech settings
+    utterance.rate = 0.8;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.lang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+
+    // Get voices and try to find a good one
+    const voices = window.speechSynthesis.getVoices();
+    let selectedVoice = null;
+
+    // Try to find a voice matching the selected accent
+    for (const voice of voices) {
+        const targetLang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
+        if (voice.lang === targetLang) {
+            selectedVoice = voice;
+            break;
+        }
+    }
+
+    // If no exact match, try partial match
+    if (!selectedVoice) {
         for (const voice of voices) {
             const targetLang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
-            if (voice.lang === targetLang) {
+            if (voice.lang.startsWith(targetLang.split('-')[0])) {
                 selectedVoice = voice;
                 break;
             }
         }
+    }
 
-        // If no exact match, try partial match
-        if (!selectedVoice) {
-            for (const voice of voices) {
-                const targetLang = selectedAccent === 'us' ? 'en-US' : 'en-GB';
-                if (voice.lang.startsWith(targetLang.split('-')[0])) {
-                    selectedVoice = voice;
+    // If still no voice, use any English voice
+    if (!selectedVoice) {
+        for (const voice of voices) {
+            if (voice.lang.startsWith('en')) {
+                selectedVoice = voice;
+                break;
+            }
+        }
+    }
+
+    // If still no voice, use the first available voice
+    if (!selectedVoice && voices.length > 0) {
+        selectedVoice = voices[0];
+    }
+
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+    }
+
+    // Set up event handlers
+    utterance.onend = function() {
+        resetButtonState(button);
+    };
+
+    utterance.onerror = function(event) {
+        resetButtonState(button);
+
+        // Only show error for non-interrupted errors
+        if (event.error !== 'interrupted') {
+            // Provide more specific error messages
+            let errorMessage = '语音播放失败，请重试';
+            switch (event.error) {
+                case 'not-allowed':
+                    errorMessage = '浏览器阻止了语音播放，请检查浏览器设置或允许语音权限';
                     break;
-                }
+                case 'network':
+                    errorMessage = '网络错误，语音服务不可用，请检查网络连接';
+                    break;
+                case 'synthesis-unavailable':
+                    errorMessage = '语音合成服务不可用，请稍后再试';
+                    break;
+                case 'language-unavailable':
+                    errorMessage = '不支持该语言语音，请尝试其他发音';
+                    break;
+            }
+            showError(errorMessage);
+        }
+    };
+
+    // Try to speak
+    try {
+        window.speechSynthesis.speak(utterance);
+
+        // Enhanced timeout handling with multiple checks
+        const timeoutChecks = [2000, 5000, 10000]; // Multiple timeout checkpoints
+        let currentTimeout = 0;
+
+        function checkSpeechStatus() {
+            if (currentTimeout < timeoutChecks.length) {
+                setTimeout(() => {
+                    if (button.classList.contains('speaking')) {
+                        // Check if speech synthesis is actually still speaking
+                        if (!window.speechSynthesis.speaking) {
+                            resetButtonState(button);
+                        } else {
+                            // Continue checking
+                            currentTimeout++;
+                            checkSpeechStatus();
+                        }
+                    }
+                }, timeoutChecks[currentTimeout]);
+            } else {
+                // Final timeout
+                resetButtonState(button);
             }
         }
 
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
+        checkSpeechStatus();
+
+    } catch (error) {
+        resetButtonState(button);
+
+        // Provide more specific error messages
+        let errorMessage = '语音播放失败，请重试';
+        if (error.name === 'NotSupportedError') {
+            errorMessage = '浏览器不支持语音功能，请尝试其他浏览器';
+        } else if (error.message.includes('not allowed')) {
+            errorMessage = '浏览器阻止了语音播放，请检查浏览器设置';
         }
-        
-        // Set up event handlers
-        utterance.onend = function() {
-            resetButtonState(button);
-        };
-        
-        utterance.onerror = function(event) {
-            resetButtonState(button);
-            
-            // Only show error for non-interrupted errors
-            if (event.error !== 'interrupted') {
-                showError('语音播放失败，请重试');
-            }
-        };
-        
-        // Try to speak
-        try {
-            window.speechSynthesis.speak(utterance);
-            
-            // Backup timeout in case onend doesn't fire
-            setTimeout(() => {
-                if (button.classList.contains('speaking')) {
-                    resetButtonState(button);
-                }
-            }, 5000);
-            
-        } catch (error) {
-            resetButtonState(button);
-            showError('语音播放失败，请重试');
-        }
-    }, 100);
+        showError(errorMessage);
+    }
 }
 
 
@@ -1608,20 +1737,24 @@ function loadKnownWordsFromAPI(wordIds = null) {
         return;
     }
 
-    // Build URL with word IDs if provided
-    let url = '/api/word-tags/known';
-    if (wordIds && wordIds.length > 0) {
-        url += '?wordIds=' + wordIds.join(',');
-    }
-
     // Try to load from API for accurate data using new endpoint
-    fetch(url, {
-        method: 'GET',
+    const url = '/api/word-tags/known';
+    const requestOptions = {
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         }
-    })
+    };
+
+    // Add word IDs to request body if provided
+    if (wordIds && wordIds.length > 0) {
+        requestOptions.body = JSON.stringify({
+            wordIds: wordIds
+        });
+    }
+
+    fetch(url, requestOptions)
     .then(response => response.json())
     .then(data => {
         if (data.code === 0 && data.data) {
@@ -2550,6 +2683,16 @@ function logout() {
         authManager.logout();
     }
 }
+
+// Add keyboard shortcut for speech reset
+document.addEventListener('keydown', function(e) {
+    // Ctrl+Shift+R to reset speech synthesis
+    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+        e.preventDefault();
+        resetSpeechSynthesis();
+        showToast('语音功能已重置', 'success');
+    }
+});
 
 // Initialize authentication manager
 const authManager = new AuthManager();

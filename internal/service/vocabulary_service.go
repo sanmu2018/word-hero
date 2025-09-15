@@ -445,34 +445,36 @@ func (vs *VocabularyService) GetKnownWordsByUser(userID string, baseList *dao.Ba
 		return nil, fmt.Errorf("failed to get known words: %w", err)
 	}
 
-	// Get full word details
-	var words []table.Word
-	for _, wordID := range wordIDs {
-		word, err := vs.wordDAO.GetByID(wordID)
-		if err != nil {
-			log.Warn().Err(err).Str("word_id", wordID).Msg("Failed to get word details")
-			continue
-		}
-		words = append(words, *word)
+	// Get full word details in a single query
+	words, err := vs.wordDAO.GetByIDs(wordIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get word details: %w", err)
 	}
 
-	// Convert to words with mark status
-	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
-	for i, word := range words {
-		wordWithMark := dto.WordWithMarkStatus{
-			Word:      word,
-			IsMarked:  true, // These are known words, so they should be marked
-			MarkCount: 1,    // At least the current user marked it
-		}
+	// Create a map for quick word lookup by ID
+	wordMap := make(map[string]table.Word)
+	for _, word := range words {
+		wordMap[word.ID] = word
+	}
 
-		// Get marked timestamp from word tag
-		// In new design, get the known timestamp from the word tag
-		wordTag, err := vs.wordTagDAO.GetByWordIDAndUserID(word.ID, userID)
-		if err == nil && wordTag.IsKnown() {
-			wordWithMark.MarkedAt = wordTag.GetKnownTimestamp()
-		}
+	// Convert to words with mark status, maintaining the original order from wordIDs
+	wordsWithMarks := make([]dto.WordWithMarkStatus, 0, len(wordIDs))
+	for _, wordID := range wordIDs {
+		if word, exists := wordMap[wordID]; exists {
+			wordWithMark := dto.WordWithMarkStatus{
+				Word:      word,
+				IsMarked:  true, // These are known words, so they should be marked
+				MarkCount: 1,    // At least the current user marked it
+			}
 
-		wordsWithMarks[i] = wordWithMark
+			// Get marked timestamp from word tag
+			wordTag, err := vs.wordTagDAO.GetByWordIDAndUserID(word.ID, userID)
+			if err == nil && wordTag.IsKnown() {
+				wordWithMark.MarkedAt = wordTag.GetKnownTimestamp()
+			}
+
+			wordsWithMarks = append(wordsWithMarks, wordWithMark)
+		}
 	}
 
 	// Calculate pagination info

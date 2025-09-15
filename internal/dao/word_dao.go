@@ -45,6 +45,20 @@ func (dao *WordDAO) GetByID(id string) (*table.Word, error) {
 	return &word, nil
 }
 
+// GetByIDs retrieves multiple words by their IDs in a single query
+func (dao *WordDAO) GetByIDs(ids []string) ([]table.Word, error) {
+	if len(ids) == 0 {
+		return []table.Word{}, nil
+	}
+
+	var words []table.Word
+	if err := dao.db.Where("id IN ?", ids).Find(&words).Error; err != nil {
+		return nil, fmt.Errorf("failed to get words by IDs: %w", err)
+	}
+
+	return words, nil
+}
+
 // GetByEnglish retrieves a word by English text
 func (dao *WordDAO) GetByEnglish(english string) (*table.Word, error) {
 	var word table.Word

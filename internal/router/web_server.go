@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sanmu2018/word-hero/internal/dao"
 	"github.com/sanmu2018/word-hero/internal/dto"
 	"github.com/sanmu2018/word-hero/internal/middleware"
 	"github.com/sanmu2018/word-hero/internal/models"
@@ -123,7 +122,7 @@ func (ws *WebServer) setupRoutes() {
 			wordTags.POST("/mark", wrapper(ws.apiMarkWordHandler))
 			wordTags.DELETE("/unmark", wrapper(ws.apiUnmarkWordHandler))
 			wordTags.GET("/status/:wordId", wrapper(ws.apiGetWordMarkStatusHandler))
-			wordTags.GET("/known", wrapper(ws.apiGetKnownWordsHandler))
+			wordTags.POST("/known", wrapper(ws.apiGetKnownWordsHandler))
 			wordTags.GET("/progress", wrapper(ws.apiGetUserProgressHandler))
 			wordTags.GET("/stats", wrapper(ws.apiGetWordTagStatsHandler))
 			wordTags.POST("/forget-words", wrapper(ws.apiForgetWordsHandler))
@@ -466,34 +465,20 @@ func (ws *WebServer) apiGetKnownWordsHandler(c *gin.Context) (interface{}, error
 		return nil, pke.NewApiError(pke.CodeUnauthorized)
 	}
 
-	// Check if specific word IDs are provided
-	wordIdsStr := c.Query("wordIds")
-	if wordIdsStr != "" {
-		// Parse word IDs from query parameter
-		var wordIds []string
-		err := c.ShouldBindQuery(&struct {
-			WordIds []string `form:"wordIds"`
-		}{
-			WordIds: strings.Split(wordIdsStr, ","),
-		})
-		if err != nil {
-			log.Error(err).Str("word_ids", wordIdsStr).Msg("Failed to parse word IDs")
-			return nil, pke.NewApiError(pke.CodeInvalidRequest)
-		}
-
+	// Check if specific word IDs are provided in request body
+	var req dto.WordMarkStatusRequest
+	if err := c.ShouldBindJSON(&req); err == nil && len(req.WordIDs) > 0 {
 		// Get mark status for specific words
-		response, err := ws.wordTagService.GetBatchWordMarkStatus(userID, wordIds)
+		response, err := ws.wordTagService.GetBatchWordMarkStatus(userID, req.WordIDs)
 		if err != nil {
-			log.Error(err).Str("user_id", userID).Strs("word_ids", wordIds).Msg("Failed to get batch word mark status")
+			log.Error(err).Str("user_id", userID).Strs("word_ids", req.WordIDs).Msg("Failed to get batch word mark status")
 			return nil, err
 		}
 
 		return response, nil
 	}
 
-	// If no word IDs provided, return all known words (backward compatibility)
-	baseList := &dao.BaseList{PageNum: 1, PageSize: 1000}
-	response, err := ws.vocabularyService.GetKnownWordsByUser(userID, baseList)
+	response, err := ws.vocabularyService.GetKnownWordsByUser(userID, nil)
 	if err != nil {
 		log.Error(err).Str("user_id", userID).Msg("Failed to get known words")
 		return nil, err
