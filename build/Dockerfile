@@ -27,4 +27,5 @@ RUN apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
 WORKDIR /app/
 COPY --from=0 /go/bin/word-hero .
 COPY --from=0 /app/word-hero/configs ./configs
+COPY --from=0 /app/word-hero/web ./web
 CMD ["./word-hero"]
