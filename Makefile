@@ -2,7 +2,7 @@
 
 image_name =word-hero
 harbor_addr=${image_name}
-tag        =v1.0
+tag        =v0.1.0
 arch       =$(shell arch)
 
 testarch:
@@ -23,26 +23,15 @@ get-deps:
 	go mod tidy
 	go mod download
 
-vet-check-all: get-deps
-	go vet ./...
-
-gosec-check-all: get-deps
-	gosec ./...
 
 bin: get-deps
 	go build -o ${image_name} cmd/${image_name}.go
 
 docker:
-	docker build -f build/Dockerfile . -t ${image_name}:v0.1.0
-
-gen-swagger:
-	swag init -g cmd/${image_name}.go -o api
-
-builder:
-	docker build -t ${image_name} -f build/Dockerfile .
+	docker build -f build/Dockerfile . -t ${image_name}:${tag}
+	docker tag ${image_name} ${harbor_addr}:${tag}
 
 push:
-	docker tag ${image_name} ${harbor_addr}:${tag}
 	docker push ${harbor_addr}:${tag}
 
 dist: testarch
@@ -50,10 +39,9 @@ dist: testarch
 	docker tag ${image_name} ${harbor_addr}/${arch}:${tag}
 	docker push ${harbor_addr}/${arch}:${tag}
 
-
 dockertag:
 	docker build --build-arg GITLAB_USER=${GITLAB_USER} --build-arg GITLAB_PWD=${GITLAB_PWD} -t ${image_name} -f build/Dockerfile .
-    docker tag ${image_name} ${harbor_addr}:${tag}
+	docker tag ${image_name} ${harbor_addr}:${tag}
 
 dockerpush: dockertag
 	docker push ${harbor_addr}:${tag}
