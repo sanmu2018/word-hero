@@ -67,7 +67,7 @@ func InitDatabase(config *conf.DatabaseConfig) error {
 	sqlDB.Close()
 
 	// Now connect to our specific database
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai",
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 		config.Host,
 		config.User,
 		config.Password,
