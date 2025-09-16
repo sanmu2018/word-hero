@@ -52,7 +52,7 @@ dist: testarch
 
 
 dockertag:
-	docker build --add-host gitlab.apulis.com.cn:120.79.42.225 --build-arg GITLAB_USER=${GITLAB_USER} --build-arg GITLAB_PWD=${GITLAB_PWD} -t ${image_name} -f build/Dockerfile .
+	docker build --build-arg GITLAB_USER=${GITLAB_USER} --build-arg GITLAB_PWD=${GITLAB_PWD} -t ${image_name} -f build/Dockerfile .
     docker tag ${image_name} ${harbor_addr}:${tag}
 
 dockerpush: dockertag
