@@ -18,7 +18,7 @@ ADD . .
 RUN CGO_ENABLED=0 GO111MODULE=${GO111MODULE} go build -buildmode=pie  -o /go/bin/word-hero cmd/main.go
 
 
-FROM harbor.apulis.cn:8443/cicd/ops/alpine:3.11
+FROM alpine:3.11
 #RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk --no-cache add ca-certificates libdrm curl zip
 RUN apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
