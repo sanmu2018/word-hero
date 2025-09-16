@@ -20,6 +20,7 @@ RUN CGO_ENABLED=0 GO111MODULE=${GO111MODULE} go build -buildmode=pie  -o /go/bin
 
 FROM alpine:3.11
 #RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories
 RUN apk --no-cache add ca-certificates libdrm curl zip
 RUN apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \

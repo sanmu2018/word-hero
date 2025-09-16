@@ -2,7 +2,7 @@
 
 image_name =word-hero
 harbor_addr=${image_name}
-tag        =$(tag)
+tag        =v1.0
 arch       =$(shell arch)
 
 testarch:

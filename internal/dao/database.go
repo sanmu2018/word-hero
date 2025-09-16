@@ -19,7 +19,7 @@ var DB *gorm.DB
 // InitDatabase initializes the database connection
 func InitDatabase(config *conf.DatabaseConfig) error {
 	// First connect to default 'postgres' database to create our database if it doesn't exist
-	defaultDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=postgres port=%d sslmode=%s TimeZone=Asia/Shanghai",
+	defaultDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=postgres port=%d sslmode=%s",
 		config.Host,
 		config.User,
 		config.Password,
