@@ -75,11 +75,11 @@ Word Hero 是一个基于 Go 的雅思词汇学习 Web 应用，提供完整的 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
 | page | int | 否 | 1 | 页码，从1开始 |
-| pageSize | int | 否 | 24 | 每页显示数量，最大100 |
+| pageSize | int | 否 | 12 | 每页显示数量，最大100 |
 
 **请求示例**:
 ```bash
-GET /api/words?page=1&pageSize=24
+GET /api/words?page=1&pageSize=12
 ```
 
 **成功响应**:
@@ -89,12 +89,22 @@ GET /api/words?page=1&pageSize=24
   "data": {
     "items": [
       {
+        "id": "12345678-1234-1234-1234-123456789012",
         "english": "abandon",
-        "chinese": "放弃，抛弃"
+        "chinese": "放弃，抛弃",
+        "category": "verb",
+        "difficulty": "medium",
+        "createdAt": 1663245600000,
+        "updatedAt": 1663245600000
       },
       {
+        "id": "87654321-4321-4321-4321-210987654321",
         "english": "ability",
-        "chinese": "能力，才能"
+        "chinese": "能力，才能",
+        "category": "noun",
+        "difficulty": "easy",
+        "createdAt": 1663245600000,
+        "updatedAt": 1663245600000
       }
     ],
     "total": 3673
@@ -104,7 +114,7 @@ GET /api/words?page=1&pageSize=24
 ```
 
 **响应字段说明**:
-- `items`: 词汇数组
+- `items`: 词汇数组，每个词汇包含完整的字段信息（id, english, chinese, category, difficulty, createdAt, updatedAt）
 - `total`: 总词汇数（前端可据此计算总页数和页码信息）
 
 **错误响应**:
@@ -188,23 +198,26 @@ GET /api/search?q=放弃
 {
   "code": 0,
   "data": {
-    "query": "abandon",
-    "results": [
+    "items": [
       {
+        "id": "12345678-1234-1234-1234-123456789012",
         "english": "abandon",
-        "chinese": "放弃，抛弃"
+        "chinese": "放弃，抛弃",
+        "category": "verb",
+        "difficulty": "medium",
+        "createdAt": 1663245600000,
+        "updatedAt": 1663245600000
       }
     ],
-    "count": 1
+    "total": 1
   },
   "msg": ""
 }
 ```
 
 **响应字段说明**:
-- `query`: 搜索关键词
-- `results`: 匹配的词汇数组
-- `count`: 匹配结果数量
+- `items`: 匹配的词汇数组，每个词汇包含完整的字段信息
+- `total`: 匹配结果总数
 
 **错误响应**:
 ```json
@@ -239,8 +252,8 @@ GET /api/stats
   "data": {
     "totalWords": 3673,
     "file_source": "words/IELTS.xlsx",
-    "totalPages": 153,
-    "pageSize": 24
+    "totalPages": 306,
+    "pageSize": 12
   },
   "msg": ""
 }
@@ -673,6 +686,15 @@ GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
 }
 ```
 
+### BaseListResp 对象（基础列表响应）
+
+```json
+{
+  "items": [],              // 对象数组（根据接口类型可能是Word或其他对象）
+  "total": 3673             // 总数量
+}
+```
+
 ### Page 对象（分页响应）
 
 ```json
@@ -680,7 +702,7 @@ GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
   "items": [],              // 对象数组（根据接口类型可能是Word或WordWithMarkStatus）
   "total": 3673,            // 总数量
   "pageNumber": 1,          // 当前页码（可选）
-  "pageSize": 24,            // 每页大小（可选）
+  "pageSize": 12,            // 每页大小（可选）
   "totalPages": 153          // 总页数（可选）
 }
 ```
@@ -691,7 +713,7 @@ GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
 
 ```javascript
 // 获取第一页词汇
-fetch('/api/words?page=1&pageSize=24')
+fetch('/api/words?page=1&pageSize=12')
   .then(response => response.json())
   .then(data => {
     if (data.code === 0) {
@@ -699,7 +721,7 @@ fetch('/api/words?page=1&pageSize=24')
       console.log('词汇总数:', data.data.total);
 
       // 计算分页信息
-      const pageSize = 24;
+      const pageSize = 12;
       const totalPages = Math.ceil(data.data.total / pageSize);
       const currentPage = 1;
 
@@ -724,7 +746,7 @@ fetch('/api/search?q=abandon')
   .then(response => response.json())
   .then(data => {
     if (data.code === 0) {
-      console.log(`找到 ${data.data.count} 个匹配结果:`, data.data.results);
+      console.log(`找到 ${data.data.total} 个匹配结果:`, data.data.items);
     } else {
       console.error('搜索失败:', data.msg);
       alert(data.msg);
@@ -922,7 +944,7 @@ function displayKnownWords(wordIDs) {
 
 ```bash
 # 获取第一页词汇
-curl "http://localhost:8080/api/words?page=1&pageSize=24"
+curl "http://localhost:8080/api/words?page=1&pageSize=12"
 
 # 获取指定页面
 curl "http://localhost:8080/api/page/2"
@@ -1024,6 +1046,15 @@ curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/word-s
   - 批量忘光操作需要明确确认
   - 用户数据完全隔离，防止跨用户数据访问
 - **API文档完善**: 完整的接口文档和使用示例，包括 JavaScript 和 curl 示例
+
+### v1.3.0 (2025-09-23)
+- **API接口优化**: 更新 `/api/words` 接口响应格式，使用 `items` 字段替代 `words` 字段
+- **搜索接口统一**: `/api/search` 接口响应格式统一为 `BaseListResp`，使用 `items` 和 `total` 字段
+- **默认分页大小调整**: 将默认分页大小从 24 调整为 12，提供更好的移动端体验
+- **词汇数据结构完善**: API 响应中的词汇对象现在包含完整的字段信息（id, english, chinese, category, difficulty, createdAt, updatedAt）
+- **统计信息更新**: 更新 `/api/stats` 接口的响应数据，反映新的默认分页大小和总页数
+- **文档同步更新**: 更新所有相关的 API 文档、示例代码和数据模型说明
+- **新增数据模型**: 添加 `BaseListResp` 对象定义，用于标准化的列表响应格式
 
 ---
 

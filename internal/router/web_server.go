@@ -240,7 +240,7 @@ func (ws *WebServer) apiSearchHandler(c *gin.Context) (interface{}, error) {
 	log.Debug().Str("query", query).Msg("Search request")
 
 	// Use service layer for search
-	results, err := ws.vocabularyService.SearchWords(query)
+	total, results, err := ws.vocabularyService.SearchWords(query)
 	if err != nil {
 		log.Error(err).Str("query", query).Msg("Search failed")
 		return nil, err
@@ -248,10 +248,9 @@ func (ws *WebServer) apiSearchHandler(c *gin.Context) (interface{}, error) {
 
 	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
 
-	return map[string]interface{}{
-		"query":   query,
-		"results": results,
-		"count":   len(results),
+	return pke.BaseListResp{
+		Items: results,
+		Total: total,
 	}, nil
 }
 
@@ -409,6 +408,7 @@ func (ws *WebServer) apiMarkWordHandler(c *gin.Context) (interface{}, error) {
 
 	var req dto.WordMarkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Error(err).Send()
 		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 

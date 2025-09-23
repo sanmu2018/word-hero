@@ -35,7 +35,7 @@ func (v *VocabularyBusiness) SearchWords(query string) []table.Word {
 
 	for _, word := range v.words {
 		if strings.Contains(strings.ToLower(word.English), queryLower) ||
-		   strings.Contains(strings.ToLower(word.Chinese), queryLower) {
+			strings.Contains(strings.ToLower(word.Chinese), queryLower) {
 			results = append(results, word)
 		}
 	}
@@ -62,7 +62,7 @@ func (v *VocabularyBusiness) GetWordsByPage(pageNumber, pageSize int) (*dto.Voca
 
 	return &dto.VocabularyPage{
 		Words:      pageWords,
-		TotalCount: totalWords,
+		TotalCount: int64(totalWords),
 		PageNumber: pageNumber,
 		PageSize:   pageSize,
 		TotalPages: totalPages,
@@ -74,9 +74,9 @@ func (v *VocabularyBusiness) GetStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 	stats["total_words"] = len(v.words)
 	stats["words_by_page"] = map[string]interface{}{
-		"25":   (len(v.words) + 24) / 25,
-		"50":   (len(v.words) + 49) / 50,
-		"100":  (len(v.words) + 99) / 100,
+		"25":  (len(v.words) + 24) / 25,
+		"50":  (len(v.words) + 49) / 50,
+		"100": (len(v.words) + 99) / 100,
 	}
 	return stats
 }

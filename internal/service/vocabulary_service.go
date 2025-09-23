@@ -48,7 +48,7 @@ func (vs *VocabularyService) GetWordsByPage(baseList *dao.BaseList) (*dto.Vocabu
 
 	return &dto.VocabularyPage{
 		Words:      words,
-		TotalCount: int(totalCount),
+		TotalCount: totalCount,
 		PageNumber: pageNumber,
 		PageSize:   pageSize,
 		TotalPages: totalPages,
@@ -65,18 +65,18 @@ func (vs *VocabularyService) GetWordsByPageLegacy(pageNumber, pageSize int) (*dt
 }
 
 // SearchWords searches for words matching the query in English and Chinese
-func (vs *VocabularyService) SearchWords(query string) ([]table.Word, error) {
+func (vs *VocabularyService) SearchWords(query string) (int64, []table.Word, error) {
 	if len(query) < 2 {
-		return []table.Word{}, nil
+		return 0, []table.Word{}, nil
 	}
 
-	words, err := vs.wordDAO.SearchWords(query)
+	total, words, err := vs.wordDAO.SearchWords(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search words: %w", err)
+		return 0, nil, fmt.Errorf("failed to search words: %w", err)
 	}
 
 	log.Info().Str("query", query).Int("results", len(words)).Msg("Database search completed")
-	return words, nil
+	return total, words, nil
 }
 
 // SearchWordsWithRegex searches for words using regex patterns
@@ -302,10 +302,10 @@ func (vs *VocabularyService) GetWordsByPageWithMarks(baseList *dao.BaseList, use
 
 			// Get mark count
 			// In new design, mark count is always 1 if known, 0 if unknown
-		var markCount int
-		if isMarked {
-			markCount = 1
-		}
+			var markCount int
+			if isMarked {
+				markCount = 1
+			}
 			if err != nil {
 				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
 			} else {
@@ -350,7 +350,7 @@ func (vs *VocabularyService) SearchWordsWithMarks(query string, userID string) (
 		return []dto.WordWithMarkStatus{}, nil
 	}
 
-	words, err := vs.wordDAO.SearchWords(query)
+	_, words, err := vs.wordDAO.SearchWords(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search words: %w", err)
 	}
@@ -373,10 +373,10 @@ func (vs *VocabularyService) SearchWordsWithMarks(query string, userID string) (
 
 			// Get mark count
 			// In new design, mark count is always 1 if known, 0 if unknown
-		var markCount int
-		if isMarked {
-			markCount = 1
-		}
+			var markCount int
+			if isMarked {
+				markCount = 1
+			}
 			if err != nil {
 				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
 			} else {
@@ -420,10 +420,10 @@ func (vs *VocabularyService) GetRandomWordsWithMarks(count int, userID string) (
 
 			// Get mark count
 			// In new design, mark count is always 1 if known, 0 if unknown
-		var markCount int
-		if isMarked {
-			markCount = 1
-		}
+			var markCount int
+			if isMarked {
+				markCount = 1
+			}
 			if err != nil {
 				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
 			} else {
@@ -495,7 +495,6 @@ func (vs *VocabularyService) GetKnownWordsByUser(userID string, baseList *dao.Ba
 		TotalPages: totalPages,
 	}, nil
 }
-
 
 // GetPageWords returns words for a specific page (simplified version for forget functionality)
 func (vs *VocabularyService) GetPageWords(page, pageSize int) ([]table.Word, error) {

@@ -7,6 +7,7 @@ import (
 	"github.com/sanmu2018/word-hero/internal/dao"
 	"github.com/sanmu2018/word-hero/internal/dto"
 	"github.com/sanmu2018/word-hero/log"
+	"github.com/sanmu2018/word-hero/pkg/pke"
 )
 
 // PagerService handles pagination logic for vocabulary words
@@ -67,17 +68,16 @@ func (ps *PagerService) GetPage(pageNumber, pageSize int) (*dto.Page, error) {
 }
 
 // GetPageData returns page data with additional metadata for API responses
-func (ps *PagerService) GetPageData(pageNumber, pageSize int) (map[string]interface{}, error) {
+func (ps *PagerService) GetPageData(pageNumber, pageSize int) (*pke.BaseListResp, error) {
 	page, err := ps.GetPage(pageNumber, pageSize)
 	if err != nil {
 		return nil, err
 	}
 
-	data := map[string]interface{}{
-		"items": page.Words,
-		"total": page.TotalCount,
+	data := &pke.BaseListResp{
+		Items: page.Words,
+		Total: page.TotalCount,
 	}
-
 	return data, nil
 }
 

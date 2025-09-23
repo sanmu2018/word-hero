@@ -142,23 +142,29 @@ func (dao *WordDAO) GetAllWords() ([]table.Word, error) {
 }
 
 // SearchWords searches for words matching the query in English and Chinese
-func (dao *WordDAO) SearchWords(query string) ([]table.Word, error) {
+func (dao *WordDAO) SearchWords(query string) (int64, []table.Word, error) {
 	if len(query) < 2 {
-		return []table.Word{}, nil
+		return 0, []table.Word{}, nil
 	}
 
 	var words []table.Word
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
-	if err := dao.db.Where(
+	tx := dao.db.Model(table.Word{}).Where(
 		"LOWER(english) LIKE ? OR LOWER(chinese) LIKE ?",
 		searchPattern, searchPattern,
-	).Order("english ASC").Find(&words).Error; err != nil {
-		return nil, fmt.Errorf("failed to search words: %w", err)
+	)
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		log.Error(err).Send()
+		return 0, nil, fmt.Errorf("failed to count words: %w", err)
+	}
+	if err := tx.Order("english ASC").Find(&words).Error; err != nil {
+		return 0, nil, fmt.Errorf("failed to search words: %w", err)
 	}
 
 	log.Info().Str("query", query).Int("results", len(words)).Msg("Search completed")
-	return words, nil
+	return total, words, nil
 }
 
 // SearchWordsWithRegex searches for words using regex patterns
