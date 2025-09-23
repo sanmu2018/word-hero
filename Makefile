@@ -1,7 +1,7 @@
 # note: call scripts from /scripts
 
 image_name =word-hero
-harbor_addr=${image_name}
+harbor_addr=sanmu2018/${image_name}
 tag        =v0.0.1
 arch       =$(shell arch)
 
@@ -27,11 +27,11 @@ get-deps:
 bin: get-deps
 	go build -o ${image_name} cmd/${image_name}.go
 
-docker:
+tag:
 	docker build -f build/Dockerfile . -t ${image_name}:${tag}
 	docker tag ${image_name} ${harbor_addr}:${tag}
 
-push:
+push: tag
 	docker push ${harbor_addr}:${tag}
 
 dist: testarch

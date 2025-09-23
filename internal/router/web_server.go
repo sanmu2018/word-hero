@@ -51,7 +51,7 @@ func NewWebServer(vocabularyService *service.VocabularyService, pagerService *se
 	}
 
 	// Add middleware
-	engine.Use(middleware.LoggerHandler, gin.Recovery(), ws.loggingMiddleware())
+	engine.Use(middleware.LoggerHandler, gin.Recovery(), ws.corsMiddleware(), ws.loggingMiddleware())
 
 	// Set up templates
 	templates := template.Must(template.ParseGlob(templateDir + "/*.html"))
@@ -136,6 +136,24 @@ func (ws *WebServer) Start(port int) error {
 	log.Info().Int("port", port).Msg("Starting web server")
 	log.Info().Str("url", fmt.Sprintf("http://localhost:%d", port)).Msg("Open in browser")
 	return ws.engine.Run(fmt.Sprintf(":%d", port))
+}
+
+// corsMiddleware handles Cross-Origin Resource Sharing (CORS)
+func (ws *WebServer) corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		c.Header("Access-Control-Expose-Headers", "Content-Length")
+		c.Header("Access-Control-Allow-Credentials", "true")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // loggingMiddleware logs HTTP requests with performance metrics
