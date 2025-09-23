@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  word-hero:
+    container_name: word-hero
+    image: sanmu2018/word-hero:v0.0.2
+    ports:
+      - "8080:8080"
+    restart: always
+    pull_policy: always   # docker compose v2.4+ 支持
