@@ -205,6 +205,12 @@ func (ws *WebServer) apiWordsHandler(c *gin.Context) (interface{}, error) {
 		log.Error(err).Send()
 		return nil, err
 	}
+	if req.PageSize == 0 {
+		req.PageSize = 12
+	}
+	if req.PageNum == 0 {
+		req.PageNum = 1
+	}
 	// Get page data using service layer
 	responseData, err := ws.pagerService.GetPageData(req)
 	if err != nil {
