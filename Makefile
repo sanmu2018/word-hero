@@ -29,19 +29,15 @@ bin: get-deps
 
 tag:
 	docker build -f build/Dockerfile . -t ${image_name}:${tag}
-	docker tag ${image_name} ${harbor_addr}:${tag}
+	docker tag ${image_name}:${tag} ${harbor_addr}:${tag}
 
 push: tag
 	docker push ${harbor_addr}:${tag}
 
-dist: testarch
-	docker build -t ${image_name} -f build/Dockerfile .
-	docker tag ${image_name} ${harbor_addr}/${arch}:${tag}
-	docker push ${harbor_addr}/${arch}:${tag}
 
 dockertag:
-	docker build --build-arg GITLAB_USER=${GITLAB_USER} --build-arg GITLAB_PWD=${GITLAB_PWD} -t ${image_name} -f build/Dockerfile .
-	docker tag ${image_name} ${harbor_addr}:${tag}
+	docker build --build-arg GITLAB_USER=${GITLAB_USER} --build-arg GITLAB_PWD=${GITLAB_PWD} -t ${image_name}:${tag} -f build/Dockerfile .
+	docker tag ${image_name}:${tag} ${harbor_addr}:${tag}
 
 dockerpush: dockertag
 	docker push ${harbor_addr}:${tag}
