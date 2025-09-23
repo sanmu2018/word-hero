@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   word-hero:
     container_name: word-hero
