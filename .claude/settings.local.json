@@ -31,7 +31,8 @@
       "Bash(powershell:*)",
       "Bash(.buildword-hero.exe)",
       "Bash(sed:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(./build/word-hero-new.exe)"
     ],
     "deny": [],
     "ask": []
