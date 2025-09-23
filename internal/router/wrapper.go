@@ -19,7 +19,7 @@ func wrapper(handler RequestProcessor) func(c *gin.Context) {
 		statusCode := http.StatusOK
 		if err != nil { //process for error
 			statusCode = http.StatusBadRequest
-			var h pke.APIResponse
+			var h *pke.APIResponse
 			if errors.As(err, &h) {
 				resp.Code = h.ErrorNo()
 				resp.Msg = h.Error()
