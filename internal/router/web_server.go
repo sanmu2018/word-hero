@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -200,28 +199,16 @@ func (ws *WebServer) homeHandler(c *gin.Context) {
 
 // apiWordsHandler handles API requests for words with pagination
 func (ws *WebServer) apiWordsHandler(c *gin.Context) (interface{}, error) {
-	// Get pagination parameters
-	page := 1
-	pageSize := 12 // Default page size
 
-	if p := c.Query("page"); p != "" {
-		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
-			page = parsed
-		}
+	var req dto.BaseList
+	if err := c.ShouldBind(&req); err != nil {
+		log.Error(err).Send()
+		return nil, err
 	}
-
-	if ps := c.Query("pageSize"); ps != "" {
-		if parsed, err := strconv.Atoi(ps); err == nil && parsed > 0 && parsed <= 100 {
-			pageSize = parsed
-		}
-	}
-
-	log.Debug().Int("page", page).Int("pageSize", pageSize).Msg("API words request")
-
 	// Get page data using service layer
-	responseData, err := ws.pagerService.GetPageData(page, pageSize)
+	responseData, err := ws.pagerService.GetPageData(req)
 	if err != nil {
-		log.Error(err).Int("page", page).Msg("Failed to get page data for API")
+		log.Error(err).Int("page", req.PageNum).Msg("Failed to get page data for API")
 		return nil, err
 	}
 
@@ -231,22 +218,26 @@ func (ws *WebServer) apiWordsHandler(c *gin.Context) (interface{}, error) {
 
 // apiSearchHandler handles search requests using service layer
 func (ws *WebServer) apiSearchHandler(c *gin.Context) (interface{}, error) {
-	query := strings.TrimSpace(c.Query("q"))
-	if query == "" {
+	var req dto.WordSearchRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		return nil, pke.NewApiError(pke.CodeInvalidRequest)
+	}
+	req.Q = strings.TrimSpace(req.Q)
+	if req.Q == "" {
 		log.Warn().Msg("Search query is empty")
 		return nil, pke.NewApiError(pke.CodeInvalidRequest)
 	}
 
-	log.Debug().Str("query", query).Msg("Search request")
+	log.Debug().Str("query", req.Q).Msg("Search request")
 
 	// Use service layer for search
-	total, results, err := ws.vocabularyService.SearchWords(query)
+	total, results, err := ws.vocabularyService.SearchWords(req)
 	if err != nil {
-		log.Error(err).Str("query", query).Msg("Search failed")
+		log.Error(err).Str("query", req.Q).Msg("Search failed")
 		return nil, err
 	}
 
-	log.Debug().Str("query", query).Int("results", len(results)).Msg("Search completed")
+	log.Debug().Str("query", req.Q).Int("results", len(results)).Msg("Search completed")
 
 	return pke.BaseListResp{
 		Items: results,

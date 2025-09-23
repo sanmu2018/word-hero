@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/sanmu2018/word-hero/internal/dto"
 	"github.com/sanmu2018/word-hero/internal/table"
 	"github.com/sanmu2018/word-hero/log"
 	"gorm.io/gorm"
@@ -142,7 +143,8 @@ func (dao *WordDAO) GetAllWords() ([]table.Word, error) {
 }
 
 // SearchWords searches for words matching the query in English and Chinese
-func (dao *WordDAO) SearchWords(query string) (int64, []table.Word, error) {
+func (dao *WordDAO) SearchWords(param dto.WordSearchRequest) (int64, []table.Word, error) {
+	query := param.Q
 	if len(query) < 2 {
 		return 0, []table.Word{}, nil
 	}
@@ -155,11 +157,20 @@ func (dao *WordDAO) SearchWords(query string) (int64, []table.Word, error) {
 		searchPattern, searchPattern,
 	)
 	var total int64
-	if err := tx.Count(&total).Error; err != nil {
+	err := tx.Count(&total).Error
+	if err != nil {
 		log.Error(err).Send()
 		return 0, nil, fmt.Errorf("failed to count words: %w", err)
 	}
-	if err := tx.Order("english ASC").Find(&words).Error; err != nil {
+	tx, err = PageList(tx, &BaseList{
+		PageNum:  param.PageNum,
+		PageSize: param.PageSize,
+	})
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to search words: %w", err)
+	}
+	err = tx.Order("english ASC").Find(&words).Error
+	if err != nil {
 		return 0, nil, fmt.Errorf("failed to search words: %w", err)
 	}
 

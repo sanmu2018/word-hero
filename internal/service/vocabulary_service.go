@@ -36,22 +36,9 @@ func (vs *VocabularyService) GetWordsByPage(baseList *dao.BaseList) (*dto.Vocabu
 		return nil, fmt.Errorf("failed to get words by page: %w", err)
 	}
 
-	// Calculate pagination info only if pagination is requested
-	var pageNumber, pageSize, totalPages int
-	if baseList != nil {
-		pageNumber = baseList.PageNum
-		pageSize = baseList.PageSize
-		if pageSize > 0 {
-			totalPages = int((totalCount + int64(pageSize) - 1) / int64(pageSize))
-		}
-	}
-
 	return &dto.VocabularyPage{
 		Words:      words,
 		TotalCount: totalCount,
-		PageNumber: pageNumber,
-		PageSize:   pageSize,
-		TotalPages: totalPages,
 	}, nil
 }
 
@@ -65,12 +52,13 @@ func (vs *VocabularyService) GetWordsByPageLegacy(pageNumber, pageSize int) (*dt
 }
 
 // SearchWords searches for words matching the query in English and Chinese
-func (vs *VocabularyService) SearchWords(query string) (int64, []table.Word, error) {
+func (vs *VocabularyService) SearchWords(param dto.WordSearchRequest) (int64, []table.Word, error) {
+	query := param.Q
 	if len(query) < 2 {
 		return 0, []table.Word{}, nil
 	}
 
-	total, words, err := vs.wordDAO.SearchWords(query)
+	total, words, err := vs.wordDAO.SearchWords(param)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to search words: %w", err)
 	}
@@ -342,53 +330,6 @@ func (vs *VocabularyService) GetWordsByPageWithMarks(baseList *dao.BaseList, use
 		PageSize:   pageSize,
 		TotalPages: totalPages,
 	}, nil
-}
-
-// SearchWordsWithMarks searches for words with mark status
-func (vs *VocabularyService) SearchWordsWithMarks(query string, userID string) ([]dto.WordWithMarkStatus, error) {
-	if len(query) < 2 {
-		return []dto.WordWithMarkStatus{}, nil
-	}
-
-	_, words, err := vs.wordDAO.SearchWords(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search words: %w", err)
-	}
-
-	// Convert words to words with mark status
-	wordsWithMarks := make([]dto.WordWithMarkStatus, len(words))
-	for i, word := range words {
-		wordWithMark := dto.WordWithMarkStatus{
-			Word: word,
-		}
-
-		// Get mark status for this word and user
-		if userID != "" {
-			isMarked, err := vs.wordTagDAO.IsWordMarkedAsKnown(word.ID, userID)
-			if err != nil {
-				log.Warn().Err(err).Str("word_id", word.ID).Str("user_id", userID).Msg("Failed to get mark status")
-			} else {
-				wordWithMark.IsMarked = isMarked
-			}
-
-			// Get mark count
-			// In new design, mark count is always 1 if known, 0 if unknown
-			var markCount int
-			if isMarked {
-				markCount = 1
-			}
-			if err != nil {
-				log.Warn().Err(err).Str("word_id", word.ID).Msg("Failed to get mark count")
-			} else {
-				wordWithMark.MarkCount = markCount
-			}
-		}
-
-		wordsWithMarks[i] = wordWithMark
-	}
-
-	log.Info().Str("query", query).Int("results", len(wordsWithMarks)).Msg("Database search with marks completed")
-	return wordsWithMarks, nil
 }
 
 // GetRandomWordsWithMarks returns random words with mark status

@@ -65,21 +65,24 @@ Word Hero 是一个基于 Go 的雅思词汇学习 Web 应用，提供完整的 
 
 ### 1. 获取分页词汇列表
 
-**接口描述**: 获取指定页码的词汇数据，支持自定义每页显示数量
+**接口描述**: 获取词汇数据，支持分页功能，分页参数完全可选
 
 **请求方式**: `GET`
 
 **接口地址**: `/api/words`
 
 **请求参数**:
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| page | int | 否 | 1 | 页码，从1开始 |
-| pageSize | int | 否 | 12 | 每页显示数量，最大100 |
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| pageNum | int | 否 | 页码，从1开始 |
+| pageSize | int | 否 | 每页显示数量，最大100 |
+| sort | string | 否 | 排序字段 |
 
 **请求示例**:
 ```bash
-GET /api/words?page=1&pageSize=12
+GET /api/words
+GET /api/words?pageNum=1&pageSize=12
+GET /api/words?pageNum=2&pageSize=24&sort=english
 ```
 
 **成功响应**:
@@ -116,6 +119,8 @@ GET /api/words?page=1&pageSize=12
 **响应字段说明**:
 - `items`: 词汇数组，每个词汇包含完整的字段信息（id, english, chinese, category, difficulty, createdAt, updatedAt）
 - `total`: 总词汇数（前端可据此计算总页数和页码信息）
+
+**注意**: 当不提供分页参数时，返回所有词汇数据；提供分页参数时，返回指定页的数据
 
 **错误响应**:
 ```json
@@ -176,21 +181,24 @@ GET /api/page/2
 
 ### 3. 词汇搜索
 
-**接口描述**: 根据关键词搜索词汇，支持英文和中文搜索
+**接口描述**: 根据关键词搜索词汇，支持英文和中文搜索，支持分页
 
 **请求方式**: `GET`
 
 **接口地址**: `/api/search`
 
 **请求参数**:
-| 参数名 | 类型 | 必填 | 说明 |
-|--------|------|------|------|
-| q | string | 是 | 搜索关键词，至少2个字符 |
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| q | string | 是 | - | 搜索关键词，至少2个字符 |
+| pageNum | int | 否 | 1 | 页码，从1开始 |
+| pageSize | int | 否 | 12 | 每页显示数量，最大100 |
 
 **请求示例**:
 ```bash
 GET /api/search?q=abandon
 GET /api/search?q=放弃
+GET /api/search?q=abandon&pageNum=1&pageSize=12
 ```
 
 **成功响应**:
@@ -207,17 +215,26 @@ GET /api/search?q=放弃
         "difficulty": "medium",
         "createdAt": 1663245600000,
         "updatedAt": 1663245600000
+      },
+      {
+        "id": "87654321-4321-4321-4321-210987654321",
+        "english": "ability",
+        "chinese": "能力，才能",
+        "category": "noun",
+        "difficulty": "easy",
+        "createdAt": 1663245600000,
+        "updatedAt": 1663245600000
       }
     ],
-    "total": 1
+    "total": 25
   },
   "msg": ""
 }
 ```
 
 **响应字段说明**:
-- `items`: 匹配的词汇数组，每个词汇包含完整的字段信息
-- `total`: 匹配结果总数
+- `items`: 当前页的匹配词汇数组，每个词汇包含完整的字段信息
+- `total`: 匹配结果总数（用于计算总页数）
 
 **错误响应**:
 ```json
@@ -638,6 +655,29 @@ GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
 
 ---
 
+## 请求数据模型
+
+### WordSearchRequest 对象（搜索请求）
+
+```json
+{
+  "q": "string",           // 搜索关键词
+  "pageNum": 1,            // 页码，从1开始（可选）
+  "pageSize": 12,          // 每页大小（可选）
+  "sort": "string"         // 排序字段（可选）
+}
+```
+
+### BaseList 对象（基础分页请求）
+
+```json
+{
+  "pageNum": 1,            // 页码，从1开始（可选）
+  "pageSize": 12,          // 每页大小（可选）
+  "sort": "string"         // 排序字段（可选）
+}
+```
+
 ## 数据模型
 
 ### Word 对象
@@ -712,8 +752,24 @@ GET /api/user/87654321-4321-4321-4321-210987654321/word-stats
 ### JavaScript 示例
 
 ```javascript
-// 获取第一页词汇
-fetch('/api/words?page=1&pageSize=12')
+// 获取所有词汇（不提供分页参数）
+fetch('/api/words')
+  .then(response => response.json())
+  .then(data => {
+    if (data.code === 0) {
+      console.log('所有词汇:', data.data.items);
+      console.log('词汇总数:', data.data.total);
+    } else {
+      console.error('请求失败:', data.msg);
+      alert(data.msg);
+    }
+  })
+  .catch(error => {
+    console.error('网络错误:', error);
+  });
+
+// 获取分页词汇
+fetch('/api/words?pageNum=1&pageSize=12')
   .then(response => response.json())
   .then(data => {
     if (data.code === 0) {
@@ -733,7 +789,6 @@ fetch('/api/words?page=1&pageSize=12')
       });
     } else {
       console.error('请求失败:', data.msg);
-      // 显示错误信息给用户
       alert(data.msg);
     }
   })
@@ -742,11 +797,23 @@ fetch('/api/words?page=1&pageSize=12')
   });
 
 // 搜索词汇
-fetch('/api/search?q=abandon')
+fetch('/api/search?q=abandon&pageNum=1&pageSize=12')
   .then(response => response.json())
   .then(data => {
     if (data.code === 0) {
       console.log(`找到 ${data.data.total} 个匹配结果:`, data.data.items);
+
+      // 计算分页信息
+      const pageSize = 12;
+      const totalPages = Math.ceil(data.data.total / pageSize);
+      const currentPage = 1;
+
+      console.log('搜索分页信息:', {
+        currentPage: currentPage,
+        totalPages: totalPages,
+        hasPrev: currentPage > 1,
+        hasNext: currentPage < totalPages
+      });
     } else {
       console.error('搜索失败:', data.msg);
       alert(data.msg);
@@ -943,14 +1010,19 @@ function displayKnownWords(wordIDs) {
 ### curl 示例
 
 ```bash
-# 获取第一页词汇
-curl "http://localhost:8080/api/words?page=1&pageSize=12"
+# 获取所有词汇（不提供分页参数）
+curl "http://localhost:8080/api/words"
+
+# 获取分页词汇
+curl "http://localhost:8080/api/words?pageNum=1&pageSize=12"
+curl "http://localhost:8080/api/words?pageNum=2&pageSize=24&sort=english"
 
 # 获取指定页面
 curl "http://localhost:8080/api/page/2"
 
 # 搜索词汇
 curl "http://localhost:8080/api/search?q=abandon"
+curl "http://localhost:8080/api/search?q=abandon&pageNum=1&pageSize=12"
 
 # 获取统计信息
 curl "http://localhost:8080/api/stats"
@@ -1002,8 +1074,8 @@ curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/word-s
 
 ## 注意事项
 
-1. **分页参数**: `pageSize` 参数的有效范围为 1-100，超出范围会自动调整
-2. **搜索要求**: 搜索关键词至少需要2个字符
+1. **分页参数**: 分页参数完全可选，不提供时返回所有数据；`pageSize` 参数的有效范围为 1-100，超出范围会自动调整
+2. **搜索要求**: 搜索关键词至少需要2个字符，搜索结果支持分页显示
 3. **字符编码**: 所有接口均使用 UTF-8 编码
 4. **跨域**: 默认不支持跨域请求，如需跨域请配置 CORS
 5. **性能**: 大量请求时建议适当增加缓存机制
@@ -1049,12 +1121,13 @@ curl "http://localhost:8080/api/user/87654321-4321-4321-4321-210987654321/word-s
 
 ### v1.3.0 (2025-09-23)
 - **API接口优化**: 更新 `/api/words` 接口响应格式，使用 `items` 字段替代 `words` 字段
+- **分页参数重构**: `/api/words` 接口分页参数改为完全可选，使用 `BaseList` 结构体统一参数格式
 - **搜索接口统一**: `/api/search` 接口响应格式统一为 `BaseListResp`，使用 `items` 和 `total` 字段
-- **默认分页大小调整**: 将默认分页大小从 24 调整为 12，提供更好的移动端体验
+- **搜索分页功能**: `/api/search` 接口新增分页支持，支持 `pageNum` 和 `pageSize` 参数
 - **词汇数据结构完善**: API 响应中的词汇对象现在包含完整的字段信息（id, english, chinese, category, difficulty, createdAt, updatedAt）
-- **统计信息更新**: 更新 `/api/stats` 接口的响应数据，反映新的默认分页大小和总页数
+- **统计信息更新**: 更新 `/api/stats` 接口的响应数据，反映新的分页参数格式
 - **文档同步更新**: 更新所有相关的 API 文档、示例代码和数据模型说明
-- **新增数据模型**: 添加 `BaseListResp` 对象定义，用于标准化的列表响应格式
+- **新增数据模型**: 添加 `BaseListResp` 和 `BaseList` 对象定义，用于标准化的请求和响应格式
 
 ---
 

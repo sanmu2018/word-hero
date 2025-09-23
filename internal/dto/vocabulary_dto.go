@@ -13,9 +13,6 @@ type VocabularyList struct {
 type VocabularyPage struct {
 	Words      []table.Word `json:"words"`
 	TotalCount int64        `json:"totalCount"`
-	PageNumber int          `json:"pageNumber"`
-	PageSize   int          `json:"pageSize"`
-	TotalPages int          `json:"totalPages"`
 }
 
 // VocabularyStats represents vocabulary statistics
