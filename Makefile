@@ -50,11 +50,8 @@ localbuild: get-deps bin
 
 dkpush: localpush
 
-run:
+up:
 	docker compose up -d
 
-stop:
-	docker compose stop
-
-start:
-	docker compose start
+down:
+	docker compose down
