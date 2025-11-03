@@ -261,7 +261,8 @@ func (dao *WordTagDAO) GetStats() (map[string]interface{}, error) {
 		Where("known IS NOT NULL").
 		Count(&knownWords).Error; err != nil {
 		log.Warn().Err(err).Msg("Failed to count known words")
-		stats["known_words"] = 0
+		stats["known_words"] = int64(0)
+		stats["total_user_marks"] = int64(0)
 	} else {
 		stats["known_words"] = knownWords
 		stats["total_user_marks"] = knownWords // Each word can only be known once now
