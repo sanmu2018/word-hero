@@ -1,0 +1,4 @@
+service_name: word-hero-api
+service_type: service
+agent_name: word-hero-agent
+agent_url: https://github.com/sanmu2018/word-hero-agent

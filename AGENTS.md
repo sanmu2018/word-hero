@@ -1,3 +1,7 @@
+# 微服务业务规范
+```text
+首先遵从agent_read_v2.md
+```
 # Repository Guidelines
 
 ## Project Structure & Module Organization

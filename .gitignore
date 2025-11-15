@@ -38,3 +38,7 @@ nul
 
 # Environment configuration file (local system tracking)
 .tmp.md
+.tmp/
+tmp/
+.idea
+.claude
